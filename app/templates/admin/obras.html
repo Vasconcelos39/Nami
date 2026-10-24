@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Biblioteca local · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco"><h1>Biblioteca local</h1><a class="botao" href="/admin/obras/nova">Adicionar obra</a></div>
+  {% set aba = 'obras' %}{% include "admin/_menu.html" %}
+  {% if linhas %}
+  <div class="tabela-rolagem">
+    <table class="tabela">
+      <thead><tr><th>Obra</th><th>Tipo</th><th>Classificação</th><th>Capítulos</th><th></th></tr></thead>
+      <tbody>
+        {% for obra, n in linhas %}
+        <tr>
+          <td><a href="/obra/local/{{ obra.id_externo }}">{{ obra.titulo }}</a>{% if obra.autor %}<br><span class="suave">{{ obra.autor }}</span>{% endif %}</td>
+          <td>{{ obra.tipo }}</td>
+          <td><span class="selo-texto selo-{{ obra.classificacao }}">{{ obra.classificacao }}</span></td>
+          <td>{{ n }}</td>
+          <td><a class="botao botao-secundario botao-pequeno" href="/admin/obras/{{ obra.id_externo }}">Editar</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">A biblioteca está vazia. Use “Adicionar obra” pra enviar seus .cbz/.cbr.</p>
+  {% endif %}
+</div>
+{% endblock %}

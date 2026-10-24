@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }} · Nami{% endblock %}
+{% block conteudo %}
+<div class="mensagem">
+  <h1>{{ titulo }}</h1>
+  <p>{{ mensagem }}</p>
+  <a class="botao" href="/">Ir para o início</a>
+</div>
+{% endblock %}

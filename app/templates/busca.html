@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_macros.html" import grade, paginacao %}
+{% block titulo %}{% if q %}{{ q }} · {% endif %}Busca · Nami{% endblock %}
+{% block conteudo %}
+{% if fonte == 'local' %}
+<div class="cabeca-bloco">
+  <h1>Biblioteca local</h1>
+  <span class="suave">{{ locais.total }} obra{{ "s" if locais.total != 1 }}</span>
+</div>
+{% if locais.obras %}{{ grade(locais.obras) }}{% else %}<p class="vazio">A biblioteca local está vazia.</p>{% endif %}
+{{ paginacao(locais, "/busca?fonte=local&") }}
+{% elif resultado is none %}
+<div class="cabeca-bloco"><h1>Buscar</h1></div>
+<p class="vazio">Digite o nome de uma obra no campo de busca.</p>
+{% else %}
+<div class="cabeca-bloco"><h1>Resultados para “{{ q }}”</h1></div>
+{% if locais and locais.obras %}
+<section class="vitrine">
+  <div class="cabeca-bloco"><h2>Na sua biblioteca</h2><span class="suave">{{ locais.total }}</span></div>
+  {{ grade(locais.obras) }}
+</section>
+{% endif %}
+<section class="vitrine">
+  <div class="cabeca-bloco">
+    <h2>No MangaDex</h2>
+    <span class="suave">{{ resultado.total }} obra{{ "s" if resultado.total != 1 }}</span>
+  </div>
+  {% if resultado.obras %}{{ grade(resultado.obras) }}{% else %}<p class="vazio">Nada encontrado. Tente outro nome, ou o título em inglês ou japonês.</p>{% endif %}
+</section>
+{{ paginacao(resultado, "/busca?q=" ~ (q | urlencode) ~ "&") }}
+{% endif %}
+{% endblock %}

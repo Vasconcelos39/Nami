@@ -1,0 +1,42 @@
+{# revelar=true só na seção +18. Fora dela, capas adultas ficam desfocadas
+   (aparecem nítidas ao passar o mouse ou focar o cartão). #}
+{% macro cartao(obra, revelar=false) %}
+<a class="cartao" href="/obra/{{ obra.fonte }}/{{ obra.id }}">
+  <span class="cartao-capa{% if obra.classificacao.adulta and not revelar %} capa-adulta{% endif %}">
+    <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="" loading="lazy" decoding="async">
+    {% if obra.classificacao != 'safe' %}<span class="selo selo-{{ obra.classificacao }}">{{ obra.classificacao.rotulo }}</span>{% endif %}
+  </span>
+  <span class="cartao-titulo">{{ obra.titulo }}</span>
+  <span class="cartao-tipo">{{ obra.tipo.rotulo }}{% if obra.fonte == 'local' %} · biblioteca{% endif %}</span>
+</a>
+{% endmacro %}
+
+{# Cartão da vitrine "Continuar lendo": leva direto pra página onde a pessoa parou. #}
+{% macro cartao_continuar(item) %}
+{% set obra, cap, leitura = item.obra, item.capitulo, item.leitura %}
+<a class="cartao" href="{% if leitura.concluido %}/obra/{{ obra.fonte }}/{{ obra.id }}{% else %}/ler/{{ cap.fonte }}/{{ cap.id }}#p={{ leitura.pagina }}{% endif %}">
+  <span class="cartao-capa{% if obra.classificacao.adulta %} capa-adulta{% endif %}">
+    <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="" loading="lazy" decoding="async">
+    {% if not leitura.concluido and leitura.total %}<progress class="barra-leitura" value="{{ leitura.pagina }}" max="{{ leitura.total }}"></progress>{% endif %}
+  </span>
+  <span class="cartao-titulo">{{ obra.titulo }}</span>
+  <span class="cartao-tipo">{{ cap.rotulo }} · {% if leitura.concluido %}lido{% else %}pág. {{ leitura.pagina }}{% endif %}</span>
+</a>
+{% endmacro %}
+
+{% macro grade(obras, linha=false, revelar=false) %}
+<div class="grade{% if linha %} grade-linha{% endif %}">
+  {% for obra in obras %}{{ cartao(obra, revelar) }}{% endfor %}
+</div>
+{% endmacro %}
+
+{# base_url termina em "?" ou "&": a macro só acrescenta pagina=N #}
+{% macro paginacao(resultado, base_url) %}
+{% if resultado.total_paginas > 1 %}
+<nav class="paginacao" aria-label="Paginação">
+  {% if resultado.pagina > 1 %}<a href="{{ base_url }}pagina={{ resultado.pagina - 1 }}">← Anterior</a>{% else %}<span></span>{% endif %}
+  <span>Página {{ resultado.pagina }} de {{ resultado.total_paginas }}</span>
+  {% if resultado.pagina < resultado.total_paginas %}<a href="{{ base_url }}pagina={{ resultado.pagina + 1 }}">Próxima →</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% endmacro %}

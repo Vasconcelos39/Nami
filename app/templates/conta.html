@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block titulo %}Sua conta · Nami{% endblock %}
+{% block conteudo %}
+<div class="conta">
+  <div class="cabeca-bloco"><h1>Sua conta</h1><span class="suave">{{ usuario.username }}</span></div>
+  {% if mensagem %}<p class="alerta alerta-ok" role="status">{{ mensagem }}</p>{% endif %}
+
+  <form class="cartao-bloco" method="post" action="/conta/preferencias">
+    <h2>Preferências</h2>
+    {% if erro_preferencias %}<p class="alerta alerta-erro" role="alert">{{ erro_preferencias }}</p>{% endif %}
+    <div class="campo">
+      <label for="idioma">Idioma preferido dos capítulos</label>
+      <select id="idioma" name="idioma">
+        {% for codigo, nome in idiomas %}
+        <option value="{{ codigo }}"{% if codigo == usuario.idioma_preferido %} selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <fieldset class="campo">
+      <legend>Conteúdo +18</legend>
+      <p class="dica">
+        Obras eróticas e pornográficas ficam escondidas por padrão. Se você ativar, elas aparecem
+        numa seção +18 separada e na busca, nunca misturadas em Mangás, Manhwas ou HQs.
+      </p>
+      <label class="marcar">
+        <input type="checkbox" name="mostrar_adulto"{% if usuario.mostrar_adulto or marcar_adulto %} checked{% endif %}>
+        <span>Mostrar conteúdo +18</span>
+      </label>
+      {% if usuario.maioridade_confirmada_em %}
+      <p class="dica">Maioridade confirmada em {{ usuario.maioridade_confirmada_em | data }}.</p>
+      {% else %}
+      <label class="marcar">
+        <input type="checkbox" name="confirmo_maioridade">
+        <span>Confirmo que tenho 18 anos ou mais</span>
+      </label>
+      {% endif %}
+    </fieldset>
+    <button type="submit" class="botao">Salvar preferências</button>
+  </form>
+
+  <form class="cartao-bloco" method="post" action="/conta/senha">
+    <h2>Trocar senha</h2>
+    {% if erro_senha %}<p class="alerta alerta-erro" role="alert">{{ erro_senha }}</p>{% endif %}
+    <div class="campo">
+      <label for="atual">Senha atual</label>
+      <input id="atual" name="atual" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="campo">
+      <label for="nova">Senha nova</label>
+      <input id="nova" name="nova" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+    </div>
+    <div class="campo">
+      <label for="nova2">Repita a senha nova</label>
+      <input id="nova2" name="nova2" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+    </div>
+    <p class="dica">Trocar a senha desconecta a sua conta de todos os outros aparelhos.</p>
+    <button type="submit" class="botao">Trocar senha</button>
+  </form>
+</div>
+{% endblock %}

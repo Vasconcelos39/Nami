@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block titulo %}{{ obra.titulo }} · Nami{% endblock %}
+{% block conteudo %}
+<article class="obra">
+  <div class="obra-capa">
+    <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="Capa de {{ obra.titulo }}">
+  </div>
+  <div class="obra-info">
+    <h1>{{ obra.titulo }}</h1>
+    {% if obra.titulos_alternativos %}<p class="alternativos">{{ obra.titulos_alternativos | join(" · ") }}</p>{% endif %}
+    <ul class="metadados">
+      <li>{{ obra.tipo.rotulo }}</li>
+      {% if obra.status %}<li>{{ obra.status | status }}</li>{% endif %}
+      {% if obra.ano %}<li>{{ obra.ano }}</li>{% endif %}
+      <li class="selo-{{ obra.classificacao }}">{{ obra.classificacao.rotulo }}</li>
+    </ul>
+    {% if obra.autores %}<p class="autores">{{ obra.autores | join(", ") }}</p>{% endif %}
+    {% if obra.tags %}
+    <ul class="tags">{% for tag in obra.tags %}<li>{{ tag }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if obra.descricao %}<div class="descricao">{{ obra.descricao }}</div>{% endif %}
+    <div class="acoes">
+      {% if continuar %}
+      {% set cap, pag = continuar %}
+      <a class="botao" href="/ler/{{ cap.fonte }}/{{ cap.id }}{% if pag > 1 %}#p={{ pag }}{% endif %}">Continuar · {{ cap.rotulo }}{% if pag > 1 %}, pág. {{ pag }}{% endif %}</a>
+      {% elif primeiro %}
+      <a class="botao" href="/ler/{{ primeiro.fonte }}/{{ primeiro.id }}">Começar a ler</a>
+      {% endif %}
+      {% if usuario %}
+      <form method="post" action="/favoritos/{{ obra.fonte }}/{{ obra.id }}{% if favorito %}/remover{% endif %}">
+        <button type="submit" class="botao botao-secundario"{% if favorito %} title="Tirar dos favoritos"{% endif %}>{% if favorito %}★ Nos favoritos{% else %}☆ Favoritar{% endif %}</button>
+      </form>
+      {% else %}
+      <a class="botao botao-secundario" href="/entrar?proximo=/obra/{{ obra.fonte }}/{{ obra.id }}">☆ Favoritar</a>
+      {% endif %}
+      {% if obra.link_original %}<a class="botao botao-secundario" href="{{ obra.link_original }}" target="_blank" rel="noopener">Ver no {{ fonte_nome }} ↗</a>{% endif %}
+      {% if obra.fonte == 'local' and usuario and usuario.is_admin %}<a class="botao botao-secundario" href="/admin/obras/{{ obra.id }}">Editar</a>{% endif %}
+    </div>
+    {% if em_dia %}<p class="suave">Você já leu todos os capítulos disponíveis.</p>{% endif %}
+  </div>
+</article>
+
+<section class="capitulos">
+  <div class="cabeca-bloco">
+    <h2>Capítulos</h2>
+    {% if por_idioma | length > 1 %}
+    <nav class="abas" aria-label="Idioma">
+      {% for codigo, lista in por_idioma.items() %}
+      <a href="?idioma={{ codigo }}"{% if codigo == idioma %} aria-current="page"{% endif %}>{{ codigo | idioma }} ({{ lista | length }})</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+  </div>
+  {% if capitulos %}
+  <ol class="lista-capitulos">
+    {% for c in capitulos %}
+    {% set leitura = leituras.get(c.id) %}
+    <li{% if leitura and leitura.concluido %} class="lido"{% endif %}>
+      {% if c.legivel %}
+      <a href="/ler/{{ c.fonte }}/{{ c.id }}{% if leitura and not leitura.concluido %}#p={{ leitura.pagina }}{% endif %}">
+      {% elif c.link_externo %}
+      <a href="{{ c.link_externo }}" target="_blank" rel="noopener">
+      {% else %}
+      <a aria-disabled="true">
+      {% endif %}
+        <span class="cap-nome">
+          {{ c.rotulo }}{% if c.titulo %} — {{ c.titulo }}{% endif %}
+          {% if c.link_externo %}<span class="cap-externo">site oficial ↗</span>{% endif %}
+          {% if leitura and leitura.concluido %}<span class="cap-marca">lido</span>
+          {% elif leitura %}<span class="cap-marca cap-marca-andamento">pág. {{ leitura.pagina }}/{{ leitura.total }}</span>{% endif %}
+        </span>
+        <span class="cap-grupo">{{ c.grupos | join(", ") or ("Biblioteca local" if c.fonte == "local" else "Sem grupo") }}</span>
+        <time class="cap-data">{{ c.publicado_em | data }}</time>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="vazio">
+    {% if obra.fonte == 'local' %}
+    Esta obra ainda não tem capítulos.{% if usuario and usuario.is_admin %} <a href="/admin/obras/{{ obra.id }}">Adicionar pelo painel</a>.{% endif %}
+    {% else %}
+    Nenhum capítulo disponível em português ou inglês.
+    Muitas obras licenciadas tiveram os capítulos removidos do MangaDex a pedido dos donos dos direitos.
+    {% endif %}
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

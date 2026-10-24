@@ -1,0 +1,49 @@
+# Nami no Orange Pi. Passo a passo em docs/DEPLOY.md.
+#
+# Escolha como o site fica acessível pela internet com COMPOSE_PROFILES no .env:
+#   caddy  -> HTTPS automático (Let's Encrypt). Precisa abrir as portas 80 e 443 no roteador.
+#   tunel  -> Cloudflare Tunnel. Funciona mesmo sem poder abrir portas (CGNAT).
+
+services:
+  nami:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NAMI_DATA_DIR: /data
+      NAMI_COOKIE_SEGURO: "true"  # o acesso de fora é sempre por HTTPS
+    volumes:
+      - nami_dados:/data  # banco, biblioteca local e cache de capas
+    expose:
+      - "8000"  # só pros outros serviços daqui; nada fica aberto pra fora
+
+  caddy:
+    image: caddy:2
+    profiles: ["caddy"]
+    restart: unless-stopped
+    depends_on: [nami]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:  # vêm do .env (o compose confere variáveis de todos os perfis, então nada de "obrigatório" aqui)
+      NAMI_DOMINIO: ${NAMI_DOMINIO:-}
+      NAMI_EMAIL: ${NAMI_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_dados:/data  # certificados HTTPS
+      - caddy_config:/config
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunel"]
+    restart: unless-stopped
+    depends_on: [nami]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+
+volumes:
+  nami_dados:
+  caddy_dados:
+  caddy_config:

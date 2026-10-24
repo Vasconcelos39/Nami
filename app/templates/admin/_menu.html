@@ -1,0 +1,8 @@
+<nav class="abas admin-menu" aria-label="Painel de admin">
+  <a href="/admin"{% if aba == 'painel' %} aria-current="page"{% endif %}>Painel</a>
+  <a href="/admin/obras"{% if aba == 'obras' %} aria-current="page"{% endif %}>Biblioteca local</a>
+  <a href="/admin/obras/nova"{% if aba == 'nova' %} aria-current="page"{% endif %}>Adicionar obra</a>
+  <a href="/admin/usuarios"{% if aba == 'usuarios' %} aria-current="page"{% endif %}>Usuários</a>
+</nav>
+{% if mensagem %}<p class="alerta alerta-ok" role="status">{{ mensagem }}</p>{% endif %}
+{% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}

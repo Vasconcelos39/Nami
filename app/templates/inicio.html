@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_macros.html" import grade, cartao_continuar %}
+{% block conteudo %}
+{% if not usuario %}
+<section class="boas-vindas">
+  <img src="/static/marca/nami-logo.png" alt="Nami" width="200" height="189">
+  <div>
+    <h1>Seus mangás, manhwas e HQs num lugar só</h1>
+    <p>
+      Leia o catálogo do MangaDex e a sua biblioteca pessoal num leitor só, sem anúncios.
+      Com uma conta, a Nami lembra onde você parou em cada capítulo.
+    </p>
+    <div class="acoes">
+      {% if cadastro_aberto %}<a class="botao" href="/cadastro">Criar conta</a>{% endif %}
+      <a class="botao botao-secundario" href="/entrar">Entrar</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% if lendo %}
+<section class="vitrine">
+  <div class="cabeca-bloco">
+    <h2>Continuar lendo</h2>
+    <a href="/historico">Histórico →</a>
+  </div>
+  <div class="grade grade-linha">
+    {% for item in lendo %}{{ cartao_continuar(item) }}{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% for titulo, link, obras in vitrines %}
+<section class="vitrine">
+  <div class="cabeca-bloco">
+    <h2>{{ titulo }}</h2>
+    {% if link %}<a href="{{ link }}">Ver tudo →</a>{% endif %}
+  </div>
+  {% if obras %}{{ grade(obras, linha=true) }}{% else %}<p class="vazio">Nada por aqui ainda.</p>{% endif %}
+</section>
+{% endfor %}
+{% endblock %}

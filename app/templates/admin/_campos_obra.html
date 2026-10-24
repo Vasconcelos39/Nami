@@ -1,0 +1,54 @@
+{# Campos de metadados, usados em "Adicionar obra" e em "Editar obra". #}
+<div class="busca-metadados" data-busca-metadados>
+  <div class="campo">
+    <label for="titulo">Título</label>
+    <div class="linha-campo">
+      <input id="titulo" name="titulo" type="text" value="{{ m.titulo }}" maxlength="500"{% if obrigatorio %} required{% endif %}>
+      <button type="button" class="botao botao-secundario" data-buscar>Buscar no MangaDex</button>
+    </div>
+    <p class="dica">Busca os dados no MangaDex e preenche o formulário. Você confere antes de salvar.</p>
+  </div>
+  <ul class="resultados-metadados" data-resultados hidden></ul>
+</div>
+<div class="campo">
+  <label for="autor">Autor(es)</label>
+  <input id="autor" name="autor" type="text" value="{{ m.autor }}" maxlength="500">
+  <p class="dica">Separe por vírgula.</p>
+</div>
+<div class="campo">
+  <label for="descricao">Sinopse</label>
+  <textarea id="descricao" name="descricao" rows="5" maxlength="20000">{{ m.descricao }}</textarea>
+</div>
+<div class="campo">
+  <label for="tags">Tags</label>
+  <input id="tags" name="tags" type="text" value="{{ m.tags | join(', ') }}" maxlength="500">
+  <p class="dica">Separe por vírgula. Ex.: Ação, Aventura, Fantasia</p>
+</div>
+<div class="campos-lado">
+  <div class="campo">
+    <label for="tipo">Tipo</label>
+    <select id="tipo" name="tipo">
+      {% for valor, nome in tipos %}<option value="{{ valor }}"{% if valor == m.tipo %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="campo">
+    <label for="classificacao">Classificação</label>
+    <select id="classificacao" name="classificacao">
+      {% for valor, nome in classificacoes %}<option value="{{ valor }}"{% if valor == m.classificacao %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="campo">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      {% for valor, nome in opcoes_status %}<option value="{{ valor }}"{% if valor == m.status %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="campo">
+    <label for="ano">Ano</label>
+    <input id="ano" name="ano" type="text" inputmode="numeric" value="{{ m.ano or '' }}" maxlength="4">
+  </div>
+</div>
+<p class="dica">
+  A classificação decide quem vê a obra: <strong>Livre</strong> pra todo mundo, <strong>Sugestivo</strong> só com conta,
+  <strong>Erótico</strong> e <strong>Pornográfico</strong> só pra quem ativou o +18.
+</p>

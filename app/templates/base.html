@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Nami{% endblock %}</title>
+  <link rel="icon" href="/static/marca/favicon.ico" sizes="any">
+  <link rel="icon" href="/static/marca/nami-favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/static/marca/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <meta name="theme-color" content="#0d182c">
+  <link rel="stylesheet" href="/static/css/nami.css?v={{ versao }}">
+</head>
+<body class="{% block classe_body %}{% endblock %}">
+{% block topo %}
+<header class="topo">
+  <div class="topo-conteudo">
+    <a class="marca" href="/" aria-label="Nami, página inicial">
+      <img class="marca-onda" src="/static/marca/nami-onda.png" alt="" width="34" height="34">
+      <img class="marca-nome" src="/static/marca/nami-nome.png" alt="Nami" width="89" height="30">
+    </a>
+    <nav class="secoes" aria-label="Seções">
+      {% for s in secoes %}
+      <a href="/secao/{{ s.slug }}"{% if secao_atual == s.slug %} aria-current="page"{% endif %}>{{ s.nome }}</a>
+      {% endfor %}
+    </nav>
+    <form class="busca" action="/busca" method="get" role="search">
+      <input type="search" name="q" value="{{ q or '' }}" placeholder="Buscar obra…" aria-label="Buscar obra" maxlength="200">
+      <button type="submit">Buscar</button>
+    </form>
+    <nav class="conta-nav" aria-label="Conta">
+      {% if usuario %}
+      {% if usuario.is_admin %}<a href="/admin">Admin</a>{% endif %}
+      <a href="/historico">Histórico</a>
+      <a href="/favoritos">Favoritos</a>
+      <a href="/conta" title="Configurações da conta">{{ usuario.username }}</a>
+      <form action="/sair" method="post"><button type="submit" class="botao-link">Sair</button></form>
+      {% else %}
+      <a href="/entrar?proximo={{ request.url.path | urlencode }}">Entrar</a>
+      {% if cadastro_aberto %}<a class="botao botao-pequeno" href="/cadastro">Criar conta</a>{% endif %}
+      {% endif %}
+    </nav>
+  </div>
+</header>
+{% endblock %}
+<main class="conteudo">
+{% block conteudo %}{% endblock %}
+</main>
+{% block rodape %}
+<footer class="rodape">
+  <p>
+    Catálogo e imagens vêm do <a href="https://mangadex.org" target="_blank" rel="noopener">MangaDex</a>
+    e da biblioteca local deste servidor. As traduções do MangaDex são dos grupos creditados em cada capítulo.
+    A Nami não é afiliada ao MangaDex e não exibe anúncios.
+  </p>
+</footer>
+{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

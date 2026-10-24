@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from "_macros.html" import grade %}
+{% block titulo %}Favoritos · Nami{% endblock %}
+{% block conteudo %}
+<div class="cabeca-bloco"><h1>Favoritos</h1></div>
+{% if obras %}
+{{ grade(obras) }}
+{% else %}
+<p class="vazio">Você ainda não favoritou nada. Use o botão ☆ Favoritar na página de uma obra.</p>
+{% endif %}
+{% endblock %}

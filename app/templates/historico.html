@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}Histórico · Nami{% endblock %}
+{% block conteudo %}
+<div class="cabeca-bloco"><h1>Histórico</h1></div>
+{% if itens %}
+<ol class="lista-historico">
+  {% for item in itens %}
+  {% set obra, cap, leitura = item.obra, item.capitulo, item.leitura %}
+  <li>
+    <a class="historico-capa{% if obra.classificacao.adulta %} capa-adulta{% endif %}" href="/obra/{{ obra.fonte }}/{{ obra.id }}" tabindex="-1">
+      <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="" loading="lazy" decoding="async">
+    </a>
+    <div class="historico-info">
+      <a class="historico-titulo" href="/obra/{{ obra.fonte }}/{{ obra.id }}">{{ obra.titulo }}</a>
+      <span class="suave">
+        {{ cap.rotulo }} ·
+        {% if leitura.concluido %}lido até o fim{% else %}página {{ leitura.pagina }} de {{ leitura.total }}{% endif %}
+        · {{ leitura.quando | data }}
+      </span>
+    </div>
+    <div class="historico-acoes">
+      {% if leitura.concluido %}
+      <a class="botao botao-secundario" href="/obra/{{ obra.fonte }}/{{ obra.id }}">Ver próximo</a>
+      {% else %}
+      <a class="botao" href="/ler/{{ cap.fonte }}/{{ cap.id }}#p={{ leitura.pagina }}">Continuar</a>
+      {% endif %}
+      <form method="post" action="/historico/remover/{{ obra.fonte }}/{{ obra.id }}">
+        <button type="submit" class="botao-link" title="Tirar esta obra do histórico">Remover</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="vazio">Nada por aqui ainda. O que você ler aparece nesta página.</p>
+{% endif %}
+{% endblock %}

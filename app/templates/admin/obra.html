@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block titulo %}{{ obra.titulo }} · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>{{ obra.titulo }}</h1>
+    <a class="botao botao-secundario" href="/obra/local/{{ obra.id_externo }}">Ver no site</a>
+  </div>
+  {% set aba = 'obras' %}{% include "admin/_menu.html" %}
+
+  <form class="cartao-bloco" method="post" action="/admin/obras/{{ obra.id_externo }}" enctype="multipart/form-data">
+    <h2>Dados da obra</h2>
+    {% set obrigatorio = true %}{% include "admin/_campos_obra.html" %}
+    <div class="campo">
+      <label for="capa">Trocar capa</label>
+      <input id="capa" name="capa" type="file" accept="image/*">
+    </div>
+    <button type="submit" class="botao">Salvar</button>
+  </form>
+
+  <section class="cartao-bloco">
+    <h2>Capítulos e volumes ({{ capitulos | length }})</h2>
+    {% if capitulos %}
+    <div class="tabela-rolagem">
+      <table class="tabela">
+        <thead><tr><th>Capítulo</th><th>Volume</th><th>Título</th><th>Páginas</th><th>Idioma</th><th></th></tr></thead>
+        <tbody>
+          {% for c in capitulos %}
+          <tr>
+            <td colspan="3">
+              <form class="linha-capitulo" method="post" action="/admin/obras/{{ obra.id_externo }}/capitulos/{{ c.id_externo }}">
+                <input name="numero" type="text" value="{{ c.numero or '' }}" maxlength="20" aria-label="Número do capítulo" placeholder="—">
+                <input name="volume" type="text" value="{{ c.volume or '' }}" maxlength="20" aria-label="Volume" placeholder="—">
+                <input name="titulo" type="text" value="{{ c.titulo or '' }}" maxlength="500" aria-label="Título do capítulo" placeholder="sem título">
+                <button type="submit" class="botao-link">Salvar</button>
+              </form>
+            </td>
+            <td>{{ c.total_paginas }}</td>
+            <td>{{ c.idioma | idioma }}</td>
+            <td>
+              <form method="post" action="/admin/obras/{{ obra.id_externo }}/capitulos/{{ c.id_externo }}/remover" data-confirmar="Remover este capítulo? As páginas são apagadas do servidor.">
+                <button type="submit" class="botao-link perigo">Remover</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="vazio">Nenhum capítulo.</p>
+    {% endif %}
+
+    <form method="post" action="/admin/obras/{{ obra.id_externo }}/capitulos" enctype="multipart/form-data" class="adicionar-capitulos" data-envio>
+      <h3>Adicionar capítulos</h3>
+      {% if erro_capitulos %}<p class="alerta alerta-erro" role="alert">{{ erro_capitulos }}</p>{% endif %}
+      <div class="campos-lado">
+        <div class="campo">
+          <label for="novos">Arquivos (.cbz ou .cbr)</label>
+          <input id="novos" name="arquivos" type="file" accept=".cbz,.cbr,.zip,.rar" multiple required>
+        </div>
+        <div class="campo">
+          <label for="idioma-novos">Idioma</label>
+          <select id="idioma-novos" name="idioma">
+            {% for valor, nome in idiomas %}<option value="{{ valor }}"{% if valor == m.idioma %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="botao" data-enviar>Enviar</button>
+      <p class="dica" data-aguarde hidden>Enviando e extraindo as páginas…</p>
+    </form>
+  </section>
+
+  <form class="cartao-bloco zona-perigo" method="post" action="/admin/obras/{{ obra.id_externo }}/remover">
+    <h2>Remover obra</h2>
+    {% if erro_remover %}<p class="alerta alerta-erro" role="alert">{{ erro_remover }}</p>{% endif %}
+    <p class="dica">Apaga a obra, todos os capítulos e as páginas do servidor. O progresso e os favoritos das pessoas nessa obra também somem.</p>
+    <label class="marcar"><input type="checkbox" name="confirmar" required> <span>Sim, quero remover “{{ obra.titulo }}”</span></label>
+    <button type="submit" class="botao botao-perigo">Remover obra</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin.js?v={{ versao }}" defer></script>{% endblock %}

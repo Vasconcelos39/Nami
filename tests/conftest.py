@@ -1,0 +1,82 @@
+"""Peças compartilhadas pelos testes.
+
+Nenhum teste fala com o MangaDex de verdade: `ApiFalsa` responde no lugar
+dele e registra cada chamada, pra os testes conferirem o que foi pedido.
+"""
+
+from collections.abc import Callable
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+
+from app.config import Config
+from app.fontes.mangadex import MangaDex
+from app.main import criar_app
+
+
+class ExecutorImediato:
+    """Roda a tarefa na hora: nos testes não queremos threads em segundo plano."""
+
+    def submit(self, funcao, *args, **kwargs):
+        funcao(*args, **kwargs)
+
+
+class ApiFalsa:
+    def __init__(self):
+        self._respostas: dict[tuple[str, str], list[Callable[[], httpx.Response]]] = {}
+        self.chamadas: list[httpx.Request] = []
+
+    def responder(self, metodo, url, *, json=None, conteudo=b"", status=200, headers=None):
+        """Define a resposta de uma URL. Chamar de novo pra mesma URL enfileira
+        outra resposta: a primeira chamada recebe a primeira, e assim por diante
+        (a última se repete)."""
+
+        def gerar():
+            if json is not None:
+                return httpx.Response(status, json=json, headers=headers)
+            return httpx.Response(status, content=conteudo, headers=headers)
+
+        self._respostas.setdefault((metodo, url), []).append(gerar)
+
+    def imagem(self, url, conteudo=b"img", tipo="image/jpeg", status=200, headers=None):
+        self.responder("GET", url, conteudo=conteudo, status=status, headers={"content-type": tipo, **(headers or {})})
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.chamadas.append(request)
+        chave = (request.method, str(request.url).split("?")[0])
+        fila = self._respostas.get(chave)
+        if not fila:
+            raise AssertionError(f"Chamada inesperada ao MangaDex: {chave}")
+        gerar = fila.pop(0) if len(fila) > 1 else fila[0]
+        return gerar()
+
+    def chamadas_para(self, caminho: str) -> list[httpx.Request]:
+        return [r for r in self.chamadas if r.url.path == caminho]
+
+
+@pytest.fixture
+def config(tmp_path):
+    return Config(_env_file=None, data_dir=tmp_path)
+
+
+@pytest.fixture
+def api():
+    return ApiFalsa()
+
+
+@pytest.fixture
+def mangadex(config, api):
+    return MangaDex(
+        config,
+        http=httpx.Client(transport=httpx.MockTransport(api)),
+        chamadas_por_segundo=1000,  # sem esperas nos testes
+        executor=ExecutorImediato(),
+    )
+
+
+@pytest.fixture
+def cliente(config, mangadex):
+    app = criar_app(config, mangadex=mangadex)
+    with TestClient(app) as cliente:  # o "with" roda o início do app (migrations)
+        yield cliente

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titulo %}Adicionar obra · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco"><h1>Adicionar obra</h1></div>
+  {% set aba = 'nova' %}{% include "admin/_menu.html" %}
+  <form class="cartao-bloco" method="post" action="/admin/obras/nova" enctype="multipart/form-data" data-envio>
+    <div class="campo">
+      <label for="arquivos">Arquivos (.cbz ou .cbr)</label>
+      <input id="arquivos" name="arquivos" type="file" accept=".cbz,.cbr,.zip,.rar" multiple required>
+      <p class="dica">
+        Cada arquivo vira um capítulo (ou volume). O número é tirado do nome do arquivo
+        (ex.: <code>Obra v02 c015.cbz</code>) ou do ComicInfo.xml, se o arquivo tiver um. Dá pra corrigir depois.
+      </p>
+    </div>
+    <div class="campo">
+      <label for="idioma">Idioma</label>
+      <select id="idioma" name="idioma">
+        {% for valor, nome in idiomas %}<option value="{{ valor }}"{% if valor == m.idioma %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+      </select>
+    </div>
+    {% include "admin/_campos_obra.html" %}
+    <p class="dica">Campos em branco são preenchidos com o ComicInfo.xml do primeiro arquivo, quando existir. Sem título, vale o nome do arquivo.</p>
+    <div class="campo">
+      <label for="capa">Capa (opcional)</label>
+      <input id="capa" name="capa" type="file" accept="image/*">
+      <p class="dica">Sem capa, a primeira página do primeiro arquivo vira a capa.</p>
+    </div>
+    <button type="submit" class="botao" data-enviar>Enviar e criar obra</button>
+    <p class="dica" data-aguarde hidden>Enviando e extraindo as páginas… arquivos grandes podem levar alguns minutos.</p>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin.js?v={{ versao }}" defer></script>{% endblock %}

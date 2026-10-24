@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}{{ capitulo.rotulo }} · {{ obra.titulo }} · Nami{% endblock %}
+{% block classe_body %}pagina-leitor{% endblock %}
+
+{% block topo %}
+<header class="leitor-topo">
+  <a class="leitor-voltar" href="{{ url_obra }}" title="Voltar para a obra" aria-label="Voltar para a obra">←</a>
+  <div class="leitor-titulos">
+    <a class="leitor-obra" href="{{ url_obra }}">{{ obra.titulo }}</a>
+    <span class="leitor-credito">
+      {{ capitulo.rotulo }}{% if capitulo.titulo %} — {{ capitulo.titulo }}{% endif %}
+      {% if capitulo.link_original %}
+      · Tradução: {{ capitulo.grupos | join(", ") or "sem grupo" }}
+      · via <a href="{{ capitulo.link_original }}" target="_blank" rel="noopener">{{ fonte_nome }}</a>
+      {% else %}
+      {% if capitulo.grupos %}· {{ capitulo.grupos | join(", ") }}{% endif %}
+      · {{ fonte_nome }}
+      {% endif %}
+    </span>
+  </div>
+  <select id="seletor-capitulo" aria-label="Ir para outro capítulo">
+    {% for c in lista %}
+    <option value="/ler/{{ c.fonte }}/{{ c.id }}"{% if c.id == capitulo.id %} selected{% endif %}>{{ c.rotulo }}</option>
+    {% endfor %}
+  </select>
+  <button type="button" id="botao-config" class="leitor-icone" aria-expanded="false" aria-controls="painel-config" title="Configurações (C)">⚙</button>
+</header>
+
+<div class="painel-config" id="painel-config" hidden>
+  <fieldset>
+    <legend>Modo</legend>
+    <label><input type="radio" name="modo" value="paginado"> Paginado</label>
+    <label><input type="radio" name="modo" value="scroll"> Rolagem contínua</label>
+  </fieldset>
+  <fieldset>
+    <legend>Direção do modo paginado</legend>
+    <label><input type="radio" name="direcao" value="ltr"> Esquerda → direita</label>
+    <label><input type="radio" name="direcao" value="rtl"> Direita → esquerda</label>
+  </fieldset>
+  <fieldset>
+    <legend>Tamanho da página</legend>
+    <label><input type="radio" name="ajuste" value="altura"> Caber na tela</label>
+    <label><input type="radio" name="ajuste" value="largura"> Largura total</label>
+  </fieldset>
+  <fieldset>
+    <legend>Qualidade</legend>
+    <label><input type="radio" name="qualidade" value="data-saver"> Econômica</label>
+    <label><input type="radio" name="qualidade" value="data"> Original</label>
+  </fieldset>
+  <dl class="atalhos">
+    <dt>← → ou A D</dt><dd>virar página</dd>
+    <dt>Espaço</dt><dd>avançar</dd>
+    <dt>[ ]</dt><dd>capítulo anterior / próximo</dd>
+    <dt>M</dt><dd>trocar modo</dd>
+    <dt>F</dt><dd>tela cheia</dd>
+    <dt>H</dt><dd>esconder barras</dd>
+    <dt>C</dt><dd>estas configurações</dd>
+  </dl>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="leitor" id="leitor" data-modo="paginado" data-ajuste="altura">
+  <div class="leitor-paginado" id="area-paginada">
+    <img id="pagina-atual" alt="" decoding="async">
+    <button type="button" class="zona zona-esquerda" id="zona-esquerda" aria-label="Virar para a esquerda"></button>
+    <button type="button" class="zona zona-direita" id="zona-direita" aria-label="Virar para a direita"></button>
+    <div class="erro-pagina" id="erro-pagina" hidden>
+      <p>Não foi possível carregar esta página.</p>
+      <button type="button" class="botao" id="tentar-de-novo">Tentar de novo</button>
+    </div>
+  </div>
+  <div class="leitor-scroll" id="area-scroll"></div>
+  <div class="fim-capitulo" id="fim-capitulo" hidden>
+    <p>Fim do {{ capitulo.rotulo | lower }}</p>
+    {% if proximo %}
+    <a class="botao" href="/ler/{{ proximo.fonte }}/{{ proximo.id }}">Próximo: {{ proximo.rotulo }}</a>
+    {% else %}
+    <p class="suave">Este é o último capítulo disponível.</p>
+    {% endif %}
+    <a class="botao botao-secundario" href="{{ url_obra }}">Voltar para a obra</a>
+  </div>
+</div>
+<div class="aviso" id="aviso" role="status" aria-live="polite" hidden></div>
+{% endblock %}
+
+{% block rodape %}
+<footer class="leitor-base">
+  {% if anterior %}
+  <a class="leitor-cap" href="/ler/{{ anterior.fonte }}/{{ anterior.id }}" title="Capítulo anterior ([)">‹ {{ anterior.rotulo }}</a>
+  {% else %}<span class="leitor-cap" aria-disabled="true">‹ Início</span>{% endif %}
+  <div class="leitor-progresso">
+    <input type="range" id="barra-pagina" min="1" max="{{ total }}" value="1" aria-label="Página">
+    <span id="indicador-pagina">1 / {{ total }}</span>
+  </div>
+  {% if proximo %}
+  <a class="leitor-cap" href="/ler/{{ proximo.fonte }}/{{ proximo.id }}" title="Próximo capítulo (])">{{ proximo.rotulo }} ›</a>
+  {% else %}<span class="leitor-cap" aria-disabled="true">Fim ›</span>{% endif %}
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="dados-leitor">{{ dados | tojson }}</script>
+<script src="/static/js/leitor.js?v={{ versao }}" defer></script>
+{% endblock %}

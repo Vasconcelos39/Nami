@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco"><h1>Painel de admin</h1></div>
+  {% set aba = 'painel' %}{% include "admin/_menu.html" %}
+  <div class="numeros">
+    <a class="numero" href="/admin/obras"><strong>{{ contagem.obras }}</strong><span>obras na biblioteca local</span></a>
+    <a class="numero" href="/admin/obras"><strong>{{ contagem.capitulos }}</strong><span>capítulos/volumes</span></a>
+    <a class="numero" href="/admin/usuarios"><strong>{{ contagem.usuarios }}</strong><span>contas</span></a>
+  </div>
+  <div class="acoes">
+    <a class="botao" href="/admin/obras/nova">Adicionar obra (.cbz/.cbr)</a>
+    <a class="botao botao-secundario" href="/admin/usuarios">Gerenciar usuários</a>
+  </div>
+</div>
+{% endblock %}

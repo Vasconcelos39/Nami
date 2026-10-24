@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import grade, paginacao %}
+{% block titulo %}{{ secao.nome }} · Nami{% endblock %}
+{% block conteudo %}
+<div class="cabeca-bloco">
+  <h1>{{ secao.nome }}</h1>
+  <nav class="abas" aria-label="Fonte">
+    {% for valor, nome in abas_fonte %}
+    <a href="/secao/{{ secao.slug }}?fonte={{ valor }}&ordem={{ ordem.value }}"{% if valor == fonte %} aria-current="page"{% endif %}>{{ nome }}</a>
+    {% endfor %}
+  </nav>
+</div>
+{% if secao.adulta %}<p class="dica">Conteúdo adulto (erótico e pornográfico). Esta seção aparece porque você ativou o +18 em <a href="/conta">Sua conta</a>; dá pra desligar lá a qualquer momento.</p>{% endif %}
+<nav class="abas abas-ordem" aria-label="Ordenar por">
+  {% for o in ordens %}
+  <a href="/secao/{{ secao.slug }}?fonte={{ fonte }}&ordem={{ o.value }}"{% if o == ordem %} aria-current="page"{% endif %}>{{ o.rotulo }}</a>
+  {% endfor %}
+</nav>
+{% if resultado.obras %}
+{{ grade(resultado.obras, revelar=secao.adulta) }}
+{% elif fonte == 'local' %}
+<p class="vazio">Nada desse tipo na biblioteca local ainda.{% if usuario and usuario.is_admin %} <a href="/admin/obras/nova">Adicionar obra</a>.{% endif %}</p>
+{% else %}
+<p class="vazio">Nenhuma obra encontrada.</p>
+{% endif %}
+{{ paginacao(resultado, "/secao/" ~ secao.slug ~ "?fonte=" ~ fonte ~ "&ordem=" ~ ordem.value ~ "&") }}
+{% endblock %}

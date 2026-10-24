@@ -1,0 +1,14 @@
+{
+  "name": "Nami",
+  "short_name": "Nami",
+  "description": "Leitor de mangás, manhwas e HQs",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d182c",
+  "theme_color": "#0d182c",
+  "icons": [
+    { "src": "/static/marca/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/marca/icone-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

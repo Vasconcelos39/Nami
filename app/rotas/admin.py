@@ -1,0 +1,402 @@
+"""Painel de admin: biblioteca local (.cbz/.cbr) e usuários.
+
+Só quem tem `is_admin` entra. Pra qualquer outra pessoa logada, estas páginas
+respondem 404, como se não existissem.
+"""
+
+import secrets
+from contextlib import ExitStack
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session
+
+from app.config import Config
+from app.dependencias import exigir_login, obter_config, obter_db, obter_fontes
+from app.dominio import Classificacao, Filtro, Tipo
+from app.fontes.base import FonteIndisponivel, NaoEncontrado
+from app.fontes.local import FONTE_ID
+from app.fontes.registro import Registro
+from app.models import Capitulo, Obra, Sessao, Usuario
+from app.renderizar import NOMES_IDIOMA, NOMES_STATUS, render
+from app.servicos import acervo
+from app.servicos.auth import gerar_hash
+from app.servicos.biblioteca import ErroDeImportacao, salvar_envio
+
+router = APIRouter(prefix="/admin")
+
+Texto = Annotated[str, Form(max_length=500)]
+TextoLongo = Annotated[str, Form(max_length=20_000)]
+Arquivos = Annotated[list[UploadFile], File()]
+ArquivoOpcional = Annotated[UploadFile | None, File()]
+
+MENSAGENS = {
+    "criada": "Obra criada.",
+    "salva": "Alterações salvas.",
+    "capitulos": "Capítulos adicionados.",
+    "capitulo": "Capítulo atualizado.",
+    "capitulo-removido": "Capítulo removido.",
+    "removida": "Obra removida da biblioteca.",
+    "promovido": "Agora essa conta é admin.",
+    "rebaixado": "Essa conta deixou de ser admin.",
+    "desativado": "Conta desativada. A pessoa foi desconectada.",
+    "reativado": "Conta reativada.",
+}
+
+
+def exigir_admin(usuario: Usuario = Depends(exigir_login)) -> Usuario:
+    if not usuario.is_admin:
+        raise NaoEncontrado("admin")
+    return usuario
+
+
+def _opcoes(config: Config) -> dict:
+    """Listas dos <select> do formulário de obra."""
+    return {
+        "tipos": [(t.value, t.rotulo) for t in Tipo],
+        "classificacoes": [(c.value, c.rotulo) for c in Classificacao],
+        "opcoes_status": [("", "—")] + [(s, NOMES_STATUS[s]) for s in acervo.STATUS],
+        "idiomas": [(i, NOMES_IDIOMA.get(i, i)) for i in config.idiomas],
+    }
+
+
+def _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, idioma) -> acervo.Metadados:
+    return acervo.Metadados(
+        titulo=titulo,
+        autor=autor,
+        descricao=descricao,
+        tags=[t for t in tags.split(",") if t.strip()],
+        tipo=tipo,
+        classificacao=classificacao,
+        status=status,
+        ano=int(ano) if ano.strip().isdigit() else None,
+        idioma=idioma,
+    )
+
+
+def _enviados(pilha: ExitStack, arquivos: list[UploadFile], config: Config) -> list[acervo.Envio]:
+    """Salva os arquivos enviados numa pasta temporária (apagada no fim da requisição)."""
+    envios = []
+    for arquivo in arquivos:
+        if not arquivo.filename:  # campo de arquivo vazio
+            continue
+        caminho = salvar_envio(arquivo.file, config.dir_temporario, config.upload_max_mb)
+        pilha.callback(caminho.unlink, missing_ok=True)
+        envios.append(acervo.Envio(arquivo.filename, caminho))
+    return envios
+
+
+def _capa(arquivo: UploadFile | None) -> bytes | None:
+    if arquivo is None or not arquivo.filename:
+        return None
+    dados = arquivo.file.read(20 * 1024 * 1024 + 1)
+    if len(dados) > 20 * 1024 * 1024:
+        raise ErroDeImportacao("A imagem de capa pode ter no máximo 20 MB.")
+    return dados
+
+
+def _obra_ou_404(db: Session, obra_id: str) -> Obra:
+    obra = acervo.obra_local(db, obra_id)
+    if obra is None:
+        raise NaoEncontrado(obra_id)
+    return obra
+
+
+# ---------------------------------------------------------------- painel
+
+
+@router.get("")
+def painel(request: Request, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)):
+    contagem = {
+        "obras": db.scalar(select(func.count()).select_from(Obra).where(Obra.fonte_id == FONTE_ID)),
+        "capitulos": db.scalar(
+            select(func.count()).select_from(Capitulo).join(Obra).where(Obra.fonte_id == FONTE_ID)
+        ),
+        "usuarios": db.scalar(select(func.count()).select_from(Usuario)),
+    }
+    return render(request, "admin/painel.html", contagem=contagem)
+
+
+# ------------------------------------------------------------------ obras
+
+
+@router.get("/obras")
+def obras(
+    request: Request, ok: str | None = None, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
+):
+    linhas = db.execute(
+        select(Obra, func.count(Capitulo.id))
+        .outerjoin(Capitulo, Capitulo.obra_id == Obra.id)
+        .where(Obra.fonte_id == FONTE_ID)
+        .group_by(Obra.id)
+        .order_by(Obra.titulo)
+    ).all()
+    return render(request, "admin/obras.html", linhas=linhas, mensagem=MENSAGENS.get(ok))
+
+
+@router.get("/obras/nova")
+def nova_obra(request: Request, config: Config = Depends(obter_config), _admin: Usuario = Depends(exigir_admin)):
+    return render(request, "admin/obra_nova.html", m=acervo.Metadados(), **_opcoes(config))
+
+
+@router.post("/obras/nova")
+def criar_obra(
+    request: Request,
+    arquivos: Arquivos,
+    titulo: Texto = "",
+    autor: Texto = "",
+    descricao: TextoLongo = "",
+    tags: Texto = "",
+    tipo: Texto = "manga",
+    classificacao: Texto = "safe",
+    status: Texto = "",
+    ano: Texto = "",
+    idioma: Texto = "pt-br",
+    capa: ArquivoOpcional = None,
+    config: Config = Depends(obter_config),
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    m = _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, idioma)
+    try:
+        with ExitStack() as pilha:
+            obra, _ = acervo.criar_obra(db, config, m, _enviados(pilha, arquivos, config), _capa(capa))
+    except ErroDeImportacao as erro:
+        return render(request, "admin/obra_nova.html", 400, m=m, erro=str(erro), **_opcoes(config))
+    return RedirectResponse(f"/admin/obras/{obra.id_externo}?ok=criada", status_code=303)
+
+
+def _pagina_obra(request: Request, db: Session, config: Config, obra: Obra, status: int = 200, **extra):
+    capitulos = db.scalars(select(Capitulo).where(Capitulo.obra_id == obra.id)).all()
+    capitulos = sorted(capitulos, key=lambda c: (c.ordem if c.ordem is not None else -1, c.publicado_em))
+    db.refresh(obra, ["tags"])
+    m = extra.pop("m", None) or acervo.Metadados(
+        titulo=obra.titulo,
+        autor=obra.autor or "",
+        descricao=obra.descricao or "",
+        tags=[t.nome for t in obra.tags],
+        tipo=obra.tipo,
+        classificacao=obra.classificacao,
+        status=obra.status or "",
+        ano=obra.ano,
+        idioma=capitulos[-1].idioma if capitulos else config.idiomas[0],
+    )
+    return render(
+        request, "admin/obra.html", status, obra=obra, capitulos=capitulos, m=m, **_opcoes(config), **extra
+    )
+
+
+@router.get("/obras/{obra_id}")
+def editar_obra(
+    obra_id: str,
+    request: Request,
+    ok: str | None = None,
+    config: Config = Depends(obter_config),
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    return _pagina_obra(request, db, config, _obra_ou_404(db, obra_id), mensagem=MENSAGENS.get(ok))
+
+
+@router.post("/obras/{obra_id}")
+def salvar_obra(
+    obra_id: str,
+    request: Request,
+    titulo: Texto = "",
+    autor: Texto = "",
+    descricao: TextoLongo = "",
+    tags: Texto = "",
+    tipo: Texto = "manga",
+    classificacao: Texto = "safe",
+    status: Texto = "",
+    ano: Texto = "",
+    capa: ArquivoOpcional = None,
+    config: Config = Depends(obter_config),
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    obra = _obra_ou_404(db, obra_id)
+    m = _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, config.idiomas[0])
+    try:
+        acervo.atualizar_obra(db, config, obra, m, _capa(capa))
+    except ErroDeImportacao as erro:
+        db.rollback()
+        return _pagina_obra(request, db, config, obra, 400, m=m, erro=str(erro))
+    return RedirectResponse(f"/admin/obras/{obra_id}?ok=salva", status_code=303)
+
+
+@router.post("/obras/{obra_id}/capitulos")
+def adicionar_capitulos(
+    obra_id: str,
+    request: Request,
+    arquivos: Arquivos,
+    idioma: Texto = "pt-br",
+    config: Config = Depends(obter_config),
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    obra = _obra_ou_404(db, obra_id)
+    try:
+        with ExitStack() as pilha:
+            acervo.adicionar_capitulos(db, config, obra, _enviados(pilha, arquivos, config), idioma)
+    except ErroDeImportacao as erro:
+        return _pagina_obra(request, db, config, obra, 400, erro_capitulos=str(erro))
+    return RedirectResponse(f"/admin/obras/{obra_id}?ok=capitulos", status_code=303)
+
+
+def _capitulo_ou_404(db: Session, obra: Obra, capitulo_id: str) -> Capitulo:
+    capitulo = db.scalar(
+        select(Capitulo).where(Capitulo.obra_id == obra.id, Capitulo.id_externo == capitulo_id)
+    )
+    if capitulo is None:
+        raise NaoEncontrado(capitulo_id)
+    return capitulo
+
+
+@router.post("/obras/{obra_id}/capitulos/{capitulo_id}")
+def salvar_capitulo(
+    obra_id: str,
+    capitulo_id: str,
+    numero: Annotated[str, Form(max_length=20)] = "",
+    volume: Annotated[str, Form(max_length=20)] = "",
+    titulo: Texto = "",
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    capitulo = _capitulo_ou_404(db, _obra_ou_404(db, obra_id), capitulo_id)
+    acervo.atualizar_capitulo(db, capitulo, numero, volume, titulo)
+    return RedirectResponse(f"/admin/obras/{obra_id}?ok=capitulo", status_code=303)
+
+
+@router.post("/obras/{obra_id}/capitulos/{capitulo_id}/remover")
+def remover_capitulo(
+    obra_id: str,
+    capitulo_id: str,
+    config: Config = Depends(obter_config),
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    capitulo = _capitulo_ou_404(db, _obra_ou_404(db, obra_id), capitulo_id)
+    acervo.remover_capitulo(db, config, capitulo)
+    return RedirectResponse(f"/admin/obras/{obra_id}?ok=capitulo-removido", status_code=303)
+
+
+@router.post("/obras/{obra_id}/remover")
+def remover_obra(
+    obra_id: str,
+    request: Request,
+    confirmar: Annotated[str | None, Form()] = None,
+    config: Config = Depends(obter_config),
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    obra = _obra_ou_404(db, obra_id)
+    if confirmar != "on":
+        return _pagina_obra(
+            request, db, config, obra, 400, erro_remover="Marque a confirmação pra remover a obra."
+        )
+    acervo.remover_obra(db, config, obra)
+    return RedirectResponse("/admin/obras?ok=removida", status_code=303)
+
+
+@router.get("/metadados")
+def buscar_metadados(q: str = "", fontes: Registro = Depends(obter_fontes), _admin: Usuario = Depends(exigir_admin)):
+    """Busca no MangaDex pra preencher o formulário (botão "Buscar no MangaDex")."""
+    termo = q.strip()[:200]
+    if not termo:
+        return []
+    filtro = Filtro(frozenset(Classificacao), termo=termo, idiomas=())
+    try:
+        resultado = fontes.obter("mangadex").buscar(filtro, 1, 8)
+    except FonteIndisponivel as erro:
+        return JSONResponse({"erro": str(erro)}, status_code=503)
+    return [
+        {
+            "titulo": o.titulo,
+            "autor": ", ".join(o.autores),
+            "descricao": o.descricao,
+            "tags": ", ".join(o.tags),
+            "tipo": o.tipo.value,
+            "classificacao": o.classificacao.value,
+            "status": o.status or "",
+            "ano": o.ano or "",
+            "link": o.link_original,
+        }
+        for o in resultado.obras
+    ]
+
+
+# ---------------------------------------------------------------- usuários
+
+
+@router.get("/usuarios")
+def usuarios(
+    request: Request, ok: str | None = None, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
+):
+    return _pagina_usuarios(request, db, mensagem=MENSAGENS.get(ok))
+
+
+def _pagina_usuarios(request: Request, db: Session, status: int = 200, **extra):
+    lista = db.scalars(select(Usuario).order_by(Usuario.criado_em)).all()
+    return render(request, "admin/usuarios.html", status, lista=lista, **extra)
+
+
+def _alvo(db: Session, usuario_id: int) -> Usuario:
+    alvo = db.get(Usuario, usuario_id)
+    if alvo is None:
+        raise NaoEncontrado(str(usuario_id))
+    return alvo
+
+
+def _desconectar(db: Session, usuario: Usuario) -> None:
+    db.execute(delete(Sessao).where(Sessao.usuario_id == usuario.id))
+
+
+@router.post("/usuarios/{usuario_id}/admin")
+def mudar_admin(
+    usuario_id: int,
+    request: Request,
+    acao: Texto,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    alvo = _alvo(db, usuario_id)
+    if alvo.id == admin.id and acao == "rebaixar":
+        return _pagina_usuarios(request, db, 400, erro="Você não pode tirar o seu próprio acesso de admin.")
+    alvo.is_admin = acao == "promover"
+    db.commit()
+    return RedirectResponse(f"/admin/usuarios?ok={'promovido' if alvo.is_admin else 'rebaixado'}", status_code=303)
+
+
+@router.post("/usuarios/{usuario_id}/ativo")
+def mudar_ativo(
+    usuario_id: int,
+    request: Request,
+    acao: Texto,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    alvo = _alvo(db, usuario_id)
+    if alvo.id == admin.id and acao == "desativar":
+        return _pagina_usuarios(request, db, 400, erro="Você não pode desativar a sua própria conta.")
+    alvo.ativo = acao != "desativar"
+    if not alvo.ativo:
+        _desconectar(db, alvo)
+    db.commit()
+    return RedirectResponse(f"/admin/usuarios?ok={'reativado' if alvo.ativo else 'desativado'}", status_code=303)
+
+
+@router.post("/usuarios/{usuario_id}/senha")
+def redefinir_senha(
+    usuario_id: int, request: Request, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
+):
+    """Cria uma senha temporária (mostrada uma vez só) pra quem esqueceu a senha."""
+    alvo = _alvo(db, usuario_id)
+    temporaria = secrets.token_urlsafe(9)
+    alvo.senha_hash = gerar_hash(temporaria)
+    _desconectar(db, alvo)
+    db.commit()
+    # Mostrada direto na página (não vai pra URL nem fica salva em lugar nenhum).
+    return _pagina_usuarios(request, db, senha_temporaria=(alvo.username, temporaria))

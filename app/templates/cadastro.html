@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Criar conta · Nami{% endblock %}
+{% block conteudo %}
+<form class="formulario" method="post" action="/cadastro">
+  <img class="logo-formulario" src="/static/marca/nami-logo.png" alt="" width="150" height="142">
+  <h1>Criar conta</h1>
+  <p class="dica">Com uma conta, a Nami guarda onde você parou em cada capítulo, seu histórico e seus favoritos.</p>
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+  <div class="campo">
+    <label for="username">Nome de usuário</label>
+    <input id="username" name="username" type="text" value="{{ username or '' }}" autocomplete="username"
+           minlength="3" maxlength="32" pattern="[A-Za-z0-9_.\-]+" required autofocus>
+    <p class="dica">De 3 a 32 caracteres: letras, números, ponto, hífen ou _.</p>
+  </div>
+  <div class="campo">
+    <label for="senha">Senha</label>
+    <input id="senha" name="senha" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+    <p class="dica">Pelo menos 8 caracteres. Uma frase comprida é mais segura que uma senha curta cheia de símbolos.</p>
+  </div>
+  <div class="campo">
+    <label for="senha2">Repita a senha</label>
+    <input id="senha2" name="senha2" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+  </div>
+  <button type="submit" class="botao">Criar conta</button>
+  <p class="dica">Já tem conta? <a href="/entrar">Entrar</a>.</p>
+</form>
+{% endblock %}

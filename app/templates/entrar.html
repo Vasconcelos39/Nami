@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar · Nami{% endblock %}
+{% block conteudo %}
+<form class="formulario" method="post" action="/entrar">
+  <img class="logo-formulario" src="/static/marca/nami-logo.png" alt="" width="150" height="142">
+  <h1>Entrar</h1>
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+  <input type="hidden" name="proximo" value="{{ proximo or '/' }}">
+  <div class="campo">
+    <label for="username">Nome de usuário</label>
+    <input id="username" name="username" type="text" value="{{ username or '' }}" autocomplete="username" required autofocus>
+  </div>
+  <div class="campo">
+    <label for="senha">Senha</label>
+    <input id="senha" name="senha" type="password" autocomplete="current-password" required>
+  </div>
+  <button type="submit" class="botao">Entrar</button>
+  {% if cadastro_aberto %}<p class="dica">Ainda não tem conta? <a href="/cadastro">Criar uma</a>.</p>{% endif %}
+  <p class="dica">Esqueceu a senha? Peça pra quem administra o site trocar pra você.</p>
+</form>
+{% endblock %}

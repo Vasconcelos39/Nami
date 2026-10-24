@@ -1,0 +1,21 @@
+# Caddy: recebe o acesso de fora, cuida do HTTPS (certificado automático da
+# Let's Encrypt) e repassa pra Nami. O domínio e o e-mail vêm do .env.
+{
+	email {$NAMI_EMAIL}
+}
+
+{$NAMI_DOMINIO} {
+	encode zstd gzip
+
+	# Mesmo limite de tamanho do envio de .cbz/.cbr no painel (NAMI_UPLOAD_MAX_MB).
+	request_body {
+		max_size 1GB
+	}
+
+	reverse_proxy nami:8000
+
+	log {
+		output stdout
+		format console
+	}
+}

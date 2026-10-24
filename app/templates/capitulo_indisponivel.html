@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}{{ capitulo.rotulo }} · {{ obra.titulo }} · Nami{% endblock %}
+{% block conteudo %}
+<div class="mensagem">
+  <h1>{{ obra.titulo }} — {{ capitulo.rotulo }}</h1>
+  {% if capitulo.link_externo %}
+  <p>Este capítulo é publicado oficialmente fora do MangaDex e só pode ser lido no site de origem.</p>
+  <a class="botao" href="{{ capitulo.link_externo }}" target="_blank" rel="noopener">Ler no site oficial ↗</a>
+  {% else %}
+  <p>Este capítulo não está disponível para leitura (pode ter sido removido a pedido dos donos dos direitos).</p>
+  {% endif %}
+  <a class="botao botao-secundario" href="{{ url_obra }}">Voltar para a obra</a>
+</div>
+{% endblock %}
