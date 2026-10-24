@@ -4,6 +4,7 @@
   <a href="/admin/obras/nova"{% if aba == 'nova' %} aria-current="page"{% endif %}>Adicionar obra</a>
   <a href="/admin/usuarios"{% if aba == 'usuarios' %} aria-current="page"{% endif %}>Usuários</a>
   <a href="/admin/reportes"{% if aba == 'reportes' %} aria-current="page"{% endif %}>Reportes</a>
+  <a href="/admin/suporte"{% if aba == 'suporte' %} aria-current="page"{% endif %}>Suporte{% if novidades.aguardando %} ({{ novidades.aguardando }}){% endif %}</a>
 </nav>
 {% if mensagem %}<p class="alerta alerta-ok" role="status">{{ mensagem }}</p>{% endif %}
 {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}

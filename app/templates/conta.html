@@ -7,7 +7,8 @@
 
   {# No celular o topo não mostra esses links: eles ficam aqui. #}
   <div class="acoes conta-atalhos">
-    {% if usuario.is_admin %}<a class="botao botao-secundario" href="/admin">Painel de admin</a>{% endif %}
+    <a class="botao botao-secundario" href="/suporte">Suporte{% if novidades.respostas %} <span class="contador">{{ novidades.respostas }}</span>{% endif %}</a>
+    {% if usuario.is_admin %}<a class="botao botao-secundario" href="/admin">Painel de admin{% if novidades.aguardando %} <span class="contador">{{ novidades.aguardando }}</span>{% endif %}</a>{% endif %}
     <form action="/sair" method="post"><button type="submit" class="botao botao-secundario">Sair da conta</button></form>
   </div>
 
@@ -69,6 +70,15 @@
     </div>
     <p class="dica">Trocar a senha desconecta a sua conta de todos os outros aparelhos.</p>
     <button type="submit" class="botao">Trocar senha</button>
+  </form>
+
+  <form class="cartao-bloco" method="post" action="/conta/sessoes">
+    <h2>Aparelhos conectados</h2>
+    <p class="dica">
+      Perdeu o celular ou entrou num computador que não é seu? Isto desconecta a sua conta
+      de todos os outros aparelhos e navegadores, menos deste.
+    </p>
+    <button type="submit" class="botao botao-secundario">Sair de todos os outros aparelhos</button>
   </form>
 </div>
 {% endblock %}

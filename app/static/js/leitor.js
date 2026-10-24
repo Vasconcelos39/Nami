@@ -18,7 +18,11 @@
     direcao: "ltr",
     ajuste: "altura",
     qualidade: dados.qualidadePadrao,
+    clique: "barras", // o que um clique na página faz: "barras" ou rolar "curto" | "medio" | "longo"
   };
+  // Quanto da altura da tela um clique rola, quando a opção está ligada.
+  const ROLAGEM_DO_CLIQUE = { curto: 0.35, medio: 0.55, longo: 0.8 };
+  const semAnimacao = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const $ = (id) => document.getElementById(id);
   const leitor = $("leitor");
@@ -31,6 +35,8 @@
   const aviso = $("aviso");
   const painel = $("painel-config");
   const botaoConfig = $("botao-config");
+  const zonaEsquerda = $("zona-esquerda");
+  const zonaDireita = $("zona-direita");
 
   let prefs = carregarPrefs();
   let pagina = paginaInicial(); // de 1 a total
@@ -138,21 +144,55 @@
   }
 
   // Com a página mais alta que a tela, o espaço rola antes de virar a página.
-  function rolar(sentido) {
-    const passo = window.innerHeight * 0.85;
+  // Devolve false quando não há mais o que rolar naquele sentido.
+  function rolar(sentido, fracao = 0.85) {
+    const passo = window.innerHeight * fracao;
     const maximo = document.documentElement.scrollHeight - window.innerHeight;
+    const comportamento = semAnimacao ? "auto" : "smooth";
     if (sentido > 0 && window.scrollY < maximo - 2) {
-      window.scrollBy({ top: passo, behavior: "smooth" });
+      window.scrollBy({ top: passo, behavior: comportamento });
       return true;
     }
     if (sentido < 0 && window.scrollY > 2) {
-      window.scrollBy({ top: -passo, behavior: "smooth" });
+      window.scrollBy({ top: -passo, behavior: comportamento });
       return true;
     }
     return false;
   }
 
-  imgAtual.addEventListener("load", () => { erro.hidden = true; });
+  // Clique em cima da página (não nas bordas): mostra/esconde as barras ou,
+  // com a opção ligada, rola um pedaço pra baixo. No modo paginado, quando a
+  // página já acabou, o clique passa pra próxima.
+  function cliqueNaPagina() {
+    const fracao = ROLAGEM_DO_CLIQUE[prefs.clique];
+    if (!fracao) {
+      alternarBarras();
+      return;
+    }
+    if (!rolar(1, fracao) && prefs.modo === "paginado") proxima();
+  }
+
+  // As áreas que viram a página (laterais) ocupam 30% da tela. Quando sobra
+  // borda escura dos dois lados da página (computador, celular deitado), elas
+  // passam a ocupar só as bordas, pra um clique no mangá em si nunca virar a
+  // página sem querer. Sem borda (celular em pé), ficam por cima da página.
+  const BORDA_MINIMA = 40; // px: menos que isso é difícil de acertar com o mouse
+  function ajustarZonas() {
+    const r = imgAtual.getBoundingClientRect();
+    const largura = document.documentElement.clientWidth;
+    const esquerda = r.left;
+    const direita = largura - r.right;
+    const temBordas =
+      prefs.modo === "paginado" && r.width > 0 && Math.min(esquerda, direita) >= BORDA_MINIMA;
+    zonaEsquerda.style.width = temBordas ? esquerda + "px" : "";
+    zonaDireita.style.width = temBordas ? direita + "px" : "";
+  }
+
+  imgAtual.addEventListener("load", () => {
+    erro.hidden = true;
+    ajustarZonas();
+  });
+  window.addEventListener("resize", ajustarZonas);
   imgAtual.addEventListener("error", () => {
     if (imgAtual.getAttribute("src")) erro.hidden = false;
   });
@@ -264,7 +304,7 @@
     document.body.dataset.modo = prefs.modo;
     alternarBarras(false);
     leitor.dataset.ajuste = prefs.ajuste;
-    for (const nome of ["modo", "direcao", "ajuste", "qualidade"]) {
+    for (const nome of ["modo", "direcao", "ajuste", "qualidade", "clique"]) {
       const radio = painel.querySelector('input[name="' + nome + '"][value="' + prefs[nome] + '"]');
       if (radio) radio.checked = true;
     }
@@ -291,14 +331,21 @@
 
   function alternarBarras(esconder) {
     document.body.classList.toggle("ui-oculta", esconder);
+    requestAnimationFrame(ajustarZonas); // sem as barras, a página fica maior
   }
 
-  $("zona-esquerda").addEventListener("click", paraEsquerda);
-  $("zona-direita").addEventListener("click", paraDireita);
-  imgAtual.addEventListener("click", () => alternarBarras());
-  // Na rolagem, tocar numa página mostra/esconde as barras.
+  zonaEsquerda.addEventListener("click", paraEsquerda);
+  zonaDireita.addEventListener("click", paraDireita);
+  imgAtual.addEventListener("click", cliqueNaPagina);
+  // Nas bordas em volta da página (no computador, as faixas escuras), o
+  // clique sempre mostra/esconde as barras.
+  $("area-paginada").addEventListener("click", (ev) => {
+    if (ev.target === ev.currentTarget) alternarBarras();
+  });
   areaScroll.addEventListener("click", (ev) => {
-    if (!(ev.target instanceof Element) || !ev.target.closest("button")) alternarBarras();
+    if (!(ev.target instanceof Element) || ev.target.closest("button")) return;
+    if (ev.target.tagName === "IMG") cliqueNaPagina();
+    else alternarBarras();
   });
   botaoConfig.addEventListener("click", () => alternarPainel());
 

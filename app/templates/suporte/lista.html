@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Suporte · Nami{% endblock %}
+{% block conteudo %}
+<div class="conta">
+  <div class="cabeca-bloco">
+    <h1>Suporte</h1>
+    <a class="botao" href="/suporte/novo">Nova conversa</a>
+  </div>
+  <p class="dica">
+    Dúvida, problema ou sugestão? Abra uma conversa e quem administra esta Nami responde por aqui.
+    {% if usuario.is_admin %}Os tickets de todo mundo ficam no <a href="/admin/suporte">painel de admin</a>.{% endif %}
+  </p>
+  {% if tickets %}
+  <ul class="lista-tickets">
+    {% for t in tickets %}
+    <li>
+      <a href="/suporte/{{ t.id }}">
+        <span class="ticket-assunto">{{ t.assunto }}</span>
+        <span class="ticket-status status-{{ t.status }}">{{ rotulos[t.status] }}</span>
+        <span class="suave">{{ t.atualizado_em | data }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vazio">Você ainda não abriu nenhuma conversa.</p>
+  {% endif %}
+</div>
+{% endblock %}

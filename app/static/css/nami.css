@@ -294,6 +294,59 @@ h2 { font-size: 1.2rem; margin: 0; }
 }
 .conta-atalhos { margin-top: -8px; }
 
+/* contador de novidades (respostas do suporte, tickets esperando) */
+.contador {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px;
+  padding: 0 6px; margin-left: 4px; border-radius: 999px;
+  background: var(--destaque); color: var(--destaque-texto); font-size: .75rem; font-weight: 700; line-height: 1;
+}
+.barra-app a { position: relative; }
+.barra-app .ponto {
+  position: absolute; top: 8px; left: calc(50% + 6px); width: 9px; height: 9px;
+  border-radius: 50%; background: var(--destaque); box-shadow: 0 0 0 2px var(--fundo);
+}
+
+/* ---------- suporte ---------- */
+
+.lista-tickets { list-style: none; margin: 0; padding: 0; border: 1px solid var(--borda); border-radius: var(--raio); overflow: hidden; }
+.lista-tickets li + li { border-top: 1px solid var(--borda); }
+.lista-tickets a {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 4px 14px;
+  padding: 12px 14px; color: var(--texto);
+}
+.lista-tickets a:hover { background: var(--superficie); text-decoration: none; }
+.ticket-assunto { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.ticket-status { padding: 2px 9px; border-radius: 999px; font-size: .78rem; font-weight: 600; background: var(--superficie-2); color: var(--texto-suave); white-space: nowrap; }
+.ticket-status.status-aberto { color: var(--sugestivo); }
+.ticket-status.status-respondido { background: var(--destaque); color: var(--destaque-texto); }
+@media (max-width: 520px) {
+  .lista-tickets a { grid-template-columns: 1fr auto; }
+  .lista-tickets a > .suave { grid-column: 1; }
+}
+
+.conversa { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.conversa h1 { margin: 2px 0 4px; overflow-wrap: anywhere; }
+.conversa .cabeca-bloco { align-items: flex-start; }
+.conversa .cabeca-bloco form { margin: 0; }
+.chat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.msg {
+  align-self: flex-start; max-width: min(85%, 560px);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px 6px; border-radius: 14px 14px 14px 4px;
+  background: var(--superficie); border: 1px solid var(--borda);
+}
+.msg-minha { align-self: flex-end; border-radius: 14px 14px 4px 14px; background: color-mix(in srgb, var(--destaque) 22%, var(--superficie)); border-color: color-mix(in srgb, var(--destaque) 45%, var(--borda)); }
+.msg-autor { font-size: .78rem; font-weight: 700; color: var(--texto-suave); }
+.msg-suporte .msg-autor { color: var(--destaque); }
+.msg-texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-quando { align-self: flex-end; font-size: .72rem; color: var(--texto-suave); }
+.compor { display: flex; gap: 8px; align-items: flex-end; margin: 0; }
+.compor textarea {
+  flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--texto); font: inherit; resize: vertical;
+}
+.visualmente-oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 /* ---------- conta ---------- */
 
 .conta-nav { display: flex; align-items: center; gap: 14px; }

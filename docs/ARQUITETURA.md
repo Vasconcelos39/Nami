@@ -23,6 +23,7 @@ A Nami **não guarda scans**. O conteúdo vem de duas fontes legítimas:
 | 3 | Biblioteca local (.cbz/.cbr) + painel de admin | pronta |
 | 4 | Regras finais do +18, proteções, Docker, HTTPS, deploy | pronta (o Docker ainda não rodou num Orange Pi de verdade) |
 | 5 | Celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página | pronta |
+| 6 | Suporte (tickets em forma de chat), auditoria de segurança, clique que rola no leitor, comando `importar` | pronta |
 
 Deploy passo a passo: [DEPLOY.md](DEPLOY.md).
 
@@ -38,7 +39,7 @@ app/
   cache.py           cache em memória com validade
   dependencias.py    o que as rotas recebem prontas (fontes, usuário, banco)
   renderizar.py      templates Jinja
-  cli.py             comandos de terminal (criar-admin, promover, redefinir-senha, backup)
+  cli.py             comandos de terminal (criar-admin, promover, redefinir-senha, backup, importar)
   fontes/
     base.py          o contrato que toda fonte cumpre
     registro.py      quais fontes estão ligadas
@@ -57,11 +58,14 @@ app/
     protecao.py      limite de requisições por IP e cabeçalhos de segurança
     cobertura.py     compara os capítulos daqui com a obra original
     reportes.py      avisos de problema enviados pelos usuários
+    suporte.py       tickets de suporte (quem vê, limites, status)
   rotas/             catalogo (início, seções, busca, obra), leitor, midia (proxy),
-                     conta, estante, reportes, admin
-  templates/         HTML (admin/ = painel)
-  static/            CSS; JS do site (nami.js), do leitor, do painel e o service
-                     worker (sw.js); manifest e tela offline; marca/ (logos já tratados)
+                     conta, estante, reportes, suporte, admin
+  templates/         HTML (admin/ = painel, suporte/ = chat de suporte)
+  static/            CSS; JS do site (nami.js), do leitor, do painel, do chat de
+                     suporte e o service worker (sw.js); manifest e tela offline;
+                     marca/ (logos já tratados)
+requirements.txt     dependências diretas; constraints.txt trava todas as versões
 assets/              arte original da marca (os PNGs que você mandou)
 migrations/          Alembic (alterações do banco versionadas)
 tests/               testes (MangaDex e AniList simulados, sem internet)
@@ -122,6 +126,9 @@ progresso  usuario_id, capitulo_id, pagina, concluido, atualizado_em
 favorito   usuario_id, obra_id, criado_em
 reporte    id, usuario_id, fonte_id, obra_externa, titulo, motivo, detalhe,
            criado_em, resolvido_em
+ticket     id, usuario_id, assunto, status (aberto|respondido|fechado),
+           criado_em, atualizado_em
+mensagem_ticket  id, ticket_id, autor_id, do_suporte, texto, criado_em
 ```
 
 Decisões:
@@ -147,16 +154,24 @@ Decisões:
   logins poderia derrubar o Orange Pi por falta de memória.
 - **Login de nome inexistente** confere um hash falso, pra demorar o mesmo tanto
   que um login real (ninguém descobre quais nomes têm conta pelo tempo).
-- **Limite de tentativas** por IP, na memória: 10 logins errados a cada 15 min
-  e 5 contas novas por hora. Atrás do proxy HTTPS (Fase 4), o uvicorn precisa
-  receber o IP real do visitante (`--proxy-headers`), senão todo mundo parece
-  vir do mesmo IP.
+- **Limite de tentativas**, na memória: 10 logins errados por rede a cada 15 min,
+  20 numa mesma conta (vindos de qualquer rede) e 5 contas novas por hora.
+  "Rede" é o IP, ou o bloco /64 no IPv6 (cada conexão IPv6 tem milhões de
+  endereços; contar um por um deixaria trocar de IP à vontade). Atrás do proxy
+  HTTPS, o uvicorn recebe o IP real do visitante (`--proxy-headers`).
+  Trade-off do limite por conta: alguém pode bloquear o login de uma conta por
+  15 minutos errando a senha dela de propósito; o admin sempre pode entrar
+  pelo terminal (`redefinir-senha`).
+- **Senhas comuns** ("12345678", "senha123"…) e senhas de um caractere repetido
+  são recusadas.
+- **"Sair de todos os outros aparelhos"** em "Sua conta" apaga as outras sessões.
 - **Cookie de sessão** `nami_sessao`: `HttpOnly` (o JavaScript não lê),
   `SameSite=Lax` e `Secure` quando `NAMI_COOKIE_SEGURO=true`. Isso **precisa**
   ficar ligado em produção (Fase 4).
 - **CSRF** (outro site enviando formulários em nome de quem está logado):
-  além do `SameSite`, todo POST com cabeçalho `Origin` de outro endereço é
-  recusado (`main.py:conferir_origem`).
+  além do `SameSite`, todo POST que o navegador marca como vindo de outro site
+  é recusado: `Sec-Fetch-Site: cross-site`, ou `Origin` (ou, nos navegadores
+  antigos, `Referer`) com outro endereço (`main.py:conferir_origem`).
 - **Redirecionamento depois do login** só aceita caminhos deste site
   (`rotas/conta.py:destino_seguro`), pra não virar trampolim pra site falso.
 - **Trocar a senha** derruba as sessões dos outros aparelhos.
@@ -202,6 +217,10 @@ que vale é o da fonte, não o que o navegador manda.
 - **Trade-off:** o envio é processado na hora, dentro da própria requisição.
   Um volume de 200 MB pode levar alguns minutos no Orange Pi e o navegador
   fica esperando. Pra um admin só, é mais simples que uma fila de tarefas.
+- **Pelo terminal:** `python -m app.cli importar CAMINHO...` faz o mesmo que o
+  envio do painel, lendo os arquivos direto do disco do servidor (aceita
+  pastas). Serve pra coleções inteiras e pra arquivos acima de 100 MB, que a
+  Cloudflare recusa pelo túnel. Os arquivos originais ficam onde estavam.
 - Na seção HQs, a aba "Biblioteca local" vem primeiro quando há HQs lá
   (quase não existe HQ no MangaDex). A busca procura nas duas fontes.
 
@@ -246,6 +265,29 @@ normal é 90). A Nami consulta só a obra que alguém abriu, guarda a resposta
 `Retry-After` de um 429. Se o AniList não responder, a página abre sem essa
 parte. `NAMI_ANILIST_ATIVO=false` desliga tudo.
 
+## Suporte
+
+Área `/suporte` (só com login): a pessoa abre uma conversa (assunto +
+mensagem) e os admins respondem, como num chat.
+
+- **Quem vê:** quem abriu e os admins. Pra qualquer outra conta o ticket
+  responde 404, nem confirma que o número existe.
+- **Status:** "esperando o suporte" (a pessoa falou por último), "respondido"
+  (o suporte falou por último) e "fechado" (qualquer um dos dois marca como
+  resolvido; uma mensagem nova reabre). Um admin no próprio ticket fala como
+  pessoa comum.
+- **Avisos:** um número aparece no menu (e um ponto no ícone "Conta" do
+  celular) quando há resposta nova; pros admins, quantos tickets esperam
+  resposta. Não há e-mail nem notificação no celular.
+- **Chat:** funciona sem JavaScript (formulário normal). Com ele,
+  `static/js/suporte.js` manda a mensagem sem recarregar e busca as novas a
+  cada 15 s, só com a aba visível. Os horários aparecem no fuso do aparelho.
+  Trade-off: não é tempo real (WebSocket); 15 s de atraso não faz diferença
+  pra suporte e evita deixar conexões abertas no Orange Pi.
+- **Limites:** assunto de 3 a 120 caracteres, mensagem até 4000, no máximo 5
+  conversas abertas por conta e 30 mensagens por hora (admins sem limite). O
+  texto aparece sempre como texto (nunca como HTML).
+
 ## Reportes
 
 Botão "⚑ Reportar problema" na página da obra (só com login): capa errada,
@@ -264,7 +306,11 @@ não ficam no banco, então o reporte guarda fonte + id + título.
   sinopse cortada com "Ler mais".
 - **Leitor:** deslizar o dedo vira a página no modo paginado (com zoom de
   pinça, o gesto só move a imagem); tocar nas laterais vira, no meio esconde as
-  barras. Manhwa/manhua e obras com a tag *Long Strip* abrem em rolagem
+  barras. Nas configurações, "Clique na página" troca isso por rolar um pedaço
+  pra baixo (35%, 55% ou 80% da tela); no modo paginado, quando a página já
+  acabou, o clique passa pra próxima. Quando sobra borda escura dos dois lados
+  da página (computador, celular deitado), as áreas que viram a página ocupam
+  só a borda, pra o clique no mangá em si nunca virar a página sem querer. Manhwa/manhua e obras com a tag *Long Strip* abrem em rolagem
   contínua; o modo escolhido fica guardado separado pra tiras e pra páginas.
   Na rolagem, as barras somem ao descer e voltam ao subir.
 - **iPhone com notch:** `viewport-fit=cover` e `env(safe-area-inset-*)`
@@ -297,12 +343,30 @@ mostrar todas as capas (elas passam pelo limitador de 4/s do MangaDex).
   de uma vez, mas não manter um ritmo maior). Acima disso: 429 com `Retry-After`.
   Ajustável por `NAMI_LIMITE_POR_MINUTO` e `NAMI_LIMITE_IMAGENS_POR_MINUTO`.
   Fica no app (e não no Caddy) porque o Caddy padrão não tem rate limit.
+- **Capítulos novos:** no máximo 12 por minuto por rede (`/ler/`). Cada
+  capítulo do MangaDex gasta uma das ~35 consultas por minuto que o servidor
+  inteiro tem; sem isso, uma pessoa só travaria a leitura de todo mundo.
+- **Tamanho dos envios:** 1 MB por requisição, menos no envio de .cbz/.cbr
+  (`NAMI_UPLOAD_MAX_MB`). Acima disso: 413. O Caddy aplica os mesmos limites.
 - **Cabeçalhos em toda resposta:** CSP (só scripts/estilos/imagens do próprio
   site; nenhum script inline), `X-Frame-Options: DENY`, `Referrer-Policy:
-  same-origin`, `X-Content-Type-Options: nosniff` e HSTS com HTTPS.
+  same-origin`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Opener-Policy`
+  e `Cross-Origin-Resource-Policy` (outros sites não embutem as imagens da
+  Nami), `Permissions-Policy` e HSTS com HTTPS. Sem CORS: nenhum outro site
+  consegue chamar as rotas da Nami pelo navegador.
+- **Erros:** página genérica "Algo deu errado", sem detalhes; o erro completo
+  vai pro log do servidor. Sem `/docs` nem `/openapi.json`, e o uvicorn não
+  diz o nome no cabeçalho `Server`.
+- **Arquivos estáticos:** o endereço do CSS e dos scripts leva a versão do app
+  e um resumo do conteúdo (`?v=0.6.0-1a2b3c4d`), então o navegador guarda por
+  um ano e mesmo assim pega a versão nova depois de cada atualização. Os sem
+  versão (logo, ícones) são conferidos a cada uso.
 - **Fora dos buscadores:** `robots.txt` e `X-Robots-Tag: noindex`.
 - **Docker:** usuário sem privilégios, um worker só, healthcheck no `/healthz`,
-  a porta do app não fica exposta (só o Caddy/Cloudflare alcança).
+  a porta do app não fica exposta (só o Caddy/Cloudflare alcança). O container
+  roda com o sistema de arquivos só leitura (grava só em `/data`; os
+  temporários vão pra `/data/tmp`, no disco), sem nenhuma capability do Linux
+  (`cap_drop: ALL`), com `no-new-privileges` e sem o token do túnel no ambiente.
 
 ## Identidade visual
 
@@ -346,6 +410,43 @@ Comportamentos descobertos testando a API (out/2026):
 - A capa principal de uma obra é a do volume mais recente (ex.: Bocchi the
   Rock! mostra o volume 8, com outra banda da história, não a protagonista).
   A Nami usa a mesma capa do MangaDex.
+
+## Auditoria de segurança (out/2026)
+
+Revisão completa feita na versão 0.6.0. O que foi conferido e o resultado:
+
+| Item | Resultado |
+|---|---|
+| Chaves de API / segredos | A Nami não usa chave nenhuma (MangaDex e AniList são públicos). O único segredo é o token do túnel, que fica no `.env` (fora do git) e agora não chega ao container do app. |
+| Variáveis de ambiente | Nenhuma senha tem valor padrão. `NAMI_COOKIE_SEGURO` vem ligado no Docker; com o cadastro aberto em produção, o log avisa. |
+| Rotas de admin | Checagem no router inteiro (`dependencies=[Depends(exigir_admin)]`) e um teste que confere todas as rotas: visitante vai pro login, conta comum recebe 404. |
+| Autenticação | argon2id, sessão com token aleatório (só o hash no banco), cookie HttpOnly/SameSite/Secure, limites por rede e por conta, senhas comuns recusadas, "sair dos outros aparelhos". |
+| Acesso de cada usuário | Progresso, favoritos, histórico, reportes e tickets sempre filtrados pela conta logada; +18 checado também em cada imagem. |
+| Formulários | Tamanho máximo em todo campo, validação no servidor, 1 MB por envio. SQL sempre parametrizado (SQLAlchemy). |
+| XSS | Jinja escapa tudo (nenhum filtro `safe`), o JS usa `textContent` (nunca `innerHTML`), CSP sem script inline e links externos só `http(s)` (o `externalUrl` do MangaDex agora também é conferido). |
+| Limite de requisições | Por rede (IPv6 por bloco /64), com memória limitada mesmo sob ataque de muitos IPs; limite próprio pra abrir capítulos. |
+| Endpoints JSON | Exigem login e checam permissão; CSRF barrado por `Sec-Fetch-Site`/`Origin`/`Referer`. |
+| CORS | Desligado (nenhum `Access-Control-Allow-Origin`); há teste. |
+| Cabeçalhos | CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, COOP, CORP, Permissions-Policy. |
+| Modo debug | Desligado: sem `/docs`, erro genérico sem detalhes, sem `--reload` no Docker, sem cabeçalho `Server`. |
+| Dependências | Todas na versão mais recente; 41 pacotes conferidos no banco de vulnerabilidades OSV, nenhuma conhecida. |
+| Pacotes sem uso | Saíram `websockets`, `PyYAML` e `watchfiles` (este ficou só no desenvolvimento). Todas as versões travadas em `constraints.txt`. |
+| Arquivos expostos | Só `app/static` é servido; banco, biblioteca e `.env` ficam fora; ids de arquivo validados antes de virar caminho. |
+| Banco | SQLite só no volume do Docker, sem porta de rede, usuário sem root; backup pelo comando `backup`. |
+| Senhas | argon2id (RFC 9106) com re-hash automático quando os parâmetros mudam. |
+| Segredos no git | Histórico inteiro varrido: nenhum `.env`, banco ou chave; só senhas falsas dos testes. |
+
+O que ainda pode melhorar (decisões conscientes, não falhas):
+
+- **Docker nunca rodou no Orange Pi:** as travas novas (`read_only`, `cap_drop`)
+  só vão ser confirmadas no primeiro `docker compose up`.
+- **Imagens de terceiros com tag móvel** (`caddy:2`, `cloudflared:latest`):
+  recebem correções de segurança com `docker compose pull`, mas não são
+  versões travadas.
+- **Sem 2FA** (código no celular) no login, nem aviso por e-mail de login novo
+  (a Nami não tem e-mail).
+- **O cookie de sessão** poderia usar o prefixo `__Host-` (impede que um
+  subdomínio grave cookie); com DuckDNS ou domínio próprio, o risco é baixo.
 
 ## Trade-offs que valem lembrar
 

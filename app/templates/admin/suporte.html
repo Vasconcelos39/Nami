@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Suporte · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>Suporte</h1>
+    <nav class="abas" aria-label="Situação">
+      {% for valor, nome in abas %}
+      <a href="/admin/suporte?status={{ valor }}"{% if valor == situacao %} aria-current="page"{% endif %}>{{ nome }} ({{ contagem[valor] }})</a>
+      {% endfor %}
+    </nav>
+  </div>
+  {% set aba = 'suporte' %}{% include "admin/_menu.html" %}
+  {% if tickets %}
+  <ul class="lista-tickets">
+    {% for t in tickets %}
+    <li>
+      <a href="/suporte/{{ t.id }}">
+        <span class="ticket-assunto">{{ t.assunto }}</span>
+        <span class="suave">{{ t.usuario.username }}</span>
+        <span class="suave">{{ t.atualizado_em | data }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vazio">Nenhum ticket aqui.</p>
+  {% endif %}
+</div>
+{% endblock %}

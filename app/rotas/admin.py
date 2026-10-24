@@ -22,11 +22,20 @@ from app.fontes.local import FONTE_ID
 from app.fontes.registro import Registro
 from app.models import Capitulo, Obra, Reporte, Sessao, Usuario
 from app.renderizar import NOMES_IDIOMA, NOMES_STATUS, render
-from app.servicos import acervo, reportes
+from app.servicos import acervo, reportes, suporte
 from app.servicos.auth import gerar_hash
 from app.servicos.biblioteca import ErroDeImportacao, salvar_envio
 
-router = APIRouter(prefix="/admin")
+def exigir_admin(usuario: Usuario = Depends(exigir_login)) -> Usuario:
+    if not usuario.is_admin:
+        raise NaoEncontrado("admin")
+    return usuario
+
+
+# A checagem vale pro router inteiro: uma rota nova aqui nunca fica aberta por
+# esquecimento. (As rotas que usam o admin logado pedem de novo; o FastAPI
+# reaproveita o resultado, então a checagem roda uma vez só.)
+router = APIRouter(prefix="/admin", dependencies=[Depends(exigir_admin)])
 
 Texto = Annotated[str, Form(max_length=500)]
 TextoLongo = Annotated[str, Form(max_length=20_000)]
@@ -47,12 +56,6 @@ MENSAGENS = {
     "resolvido": "Reporte marcado como resolvido.",
     "reaberto": "Reporte reaberto.",
 }
-
-
-def exigir_admin(usuario: Usuario = Depends(exigir_login)) -> Usuario:
-    if not usuario.is_admin:
-        raise NaoEncontrado("admin")
-    return usuario
 
 
 def _opcoes(config: Config) -> dict:
@@ -132,6 +135,31 @@ def painel(request: Request, _admin: Usuario = Depends(exigir_admin), db: Sessio
         "reportes": reportes.abertos(db),
     }
     return render(request, "admin/painel.html", contagem=contagem)
+
+
+# ---------------------------------------------------------------- suporte
+
+
+ABAS_SUPORTE = [("aberto", "Esperando resposta"), ("respondido", "Respondidos"), ("fechado", "Fechados")]
+
+
+@router.get("/suporte")
+def tickets(
+    request: Request,
+    status: str = "aberto",
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    if status not in dict(ABAS_SUPORTE):
+        status = "aberto"
+    return render(
+        request,
+        "admin/suporte.html",
+        tickets=suporte.para_o_suporte(db, status),
+        situacao=status,  # ("status" é o código HTTP no render)
+        abas=ABAS_SUPORTE,
+        contagem={valor: suporte.contar(db, valor) for valor, _ in ABAS_SUPORTE},
+    )
 
 
 # --------------------------------------------------------------- reportes

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Nova conversa · Suporte · Nami{% endblock %}
+{% block conteudo %}
+<form class="formulario cartao-bloco" method="post" action="/suporte/novo">
+  <h1>Nova conversa</h1>
+  <p class="dica">Quem administra esta Nami vê a mensagem e responde por aqui. Não mande senhas.</p>
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+  <div class="campo">
+    <label for="assunto">Assunto</label>
+    <input id="assunto" name="assunto" type="text" value="{{ assunto }}" maxlength="120" required placeholder="Ex.: capítulo que não abre">
+  </div>
+  <div class="campo">
+    <label for="texto">Mensagem</label>
+    <textarea id="texto" name="texto" rows="6" maxlength="4000" required placeholder="Conte o que aconteceu. Se for sobre uma obra, cole o link dela.">{{ texto }}</textarea>
+  </div>
+  <div class="acoes">
+    <button type="submit" class="botao">Enviar</button>
+    <a class="botao botao-secundario" href="/suporte">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

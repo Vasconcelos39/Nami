@@ -18,17 +18,22 @@ from app.servicos.auth import (
     autenticar,
     criar_conta,
     criar_sessao,
+    encerrar_outras_sessoes,
     encerrar_sessao,
     trocar_senha,
 )
-from app.servicos.protecao import ip_do_cliente
+from app.servicos.protecao import chave_do_cliente
 
 router = APIRouter()
 
 Campo = Annotated[str, Form(max_length=200)]
 CampoOpcional = Annotated[str | None, Form(max_length=200)]
 
-MENSAGENS_OK = {"preferencias": "Preferências salvas.", "senha": "Senha trocada. Os outros aparelhos foram desconectados."}
+MENSAGENS_OK = {
+    "preferencias": "Preferências salvas.",
+    "senha": "Senha trocada. Os outros aparelhos foram desconectados.",
+    "sessoes": "Pronto: a sua conta só continua conectada neste aparelho.",
+}
 
 
 def destino_seguro(proximo: str | None) -> str:
@@ -72,8 +77,12 @@ def entrar(
     db: Session = Depends(obter_db),
 ):
     proximo = destino_seguro(proximo)
-    limite = request.app.state.limite_login
-    if limite.bloqueado(ip_do_cliente(request)):
+    # Dois limites: por rede (alguém testando muitas senhas) e por conta (muitas
+    # redes testando a mesma conta). Conta inexistente também conta, pra não
+    # revelar quais nomes existem.
+    limite_ip, limite_conta = request.app.state.limite_login, request.app.state.limite_login_conta
+    chave_ip, chave_conta = chave_do_cliente(request), username.strip().lower()
+    if limite_ip.bloqueado(chave_ip) or limite_conta.bloqueado(chave_conta):
         return render(
             request, "entrar.html", 429, proximo=proximo, username=username,
             erro="Muitas tentativas erradas. Espere 15 minutos e tente de novo.",
@@ -83,7 +92,8 @@ def entrar(
     except ErroDeConta as erro:
         return render(request, "entrar.html", 403, proximo=proximo, username=username, erro=str(erro))
     if usuario is None:
-        limite.registrar(ip_do_cliente(request))
+        limite_ip.registrar(chave_ip)
+        limite_conta.registrar(chave_conta)
         return render(
             request, "entrar.html", 400, proximo=proximo, username=username,
             erro="Usuário ou senha incorretos.",
@@ -118,7 +128,7 @@ def cadastrar(
     if not config.cadastro_aberto:
         raise NaoEncontrado("cadastro")
     limite = request.app.state.limite_cadastro
-    if limite.bloqueado(ip_do_cliente(request)):
+    if limite.bloqueado(chave_do_cliente(request)):
         return render(
             request, "cadastro.html", 429, username=username,
             erro="Muitas contas criadas a partir desta rede. Tente de novo mais tarde.",
@@ -129,7 +139,7 @@ def cadastrar(
         usuario = criar_conta(db, username, senha)
     except ErroDeConta as erro:
         return render(request, "cadastro.html", 400, username=username, erro=str(erro))
-    limite.registrar(ip_do_cliente(request))
+    limite.registrar(chave_do_cliente(request))
     token = criar_sessao(db, usuario, config.sessao_dias)
     return _entrar(RedirectResponse("/", status_code=303), token, config)
 
@@ -211,3 +221,10 @@ def salvar_senha(
     except ErroDeConta as erro:
         return _pagina_conta(request, config, 400, erro_senha=str(erro))
     return RedirectResponse("/conta?ok=senha", status_code=303)
+
+
+@router.post("/conta/sessoes")
+def sair_dos_outros(request: Request, usuario: Usuario = Depends(exigir_login), db: Session = Depends(obter_db)):
+    """Desconecta a conta de todos os outros aparelhos (ex.: celular perdido)."""
+    encerrar_outras_sessoes(db, usuario, request.cookies.get(COOKIE_SESSAO, ""))
+    return RedirectResponse("/conta?ok=sessoes", status_code=303)

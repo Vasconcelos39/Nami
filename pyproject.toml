@@ -1,6 +1,6 @@
 [project]
 name = "nami"
-version = "0.5.0"
+version = "0.6.0"
 description = "Leitor self-hosted de mangás, manhwas e HQs"
 requires-python = ">=3.13"
 

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}{{ ticket.assunto }} · Suporte · Nami{% endblock %}
+{% block conteudo %}
+<div class="conversa" id="conversa" data-ticket="{{ ticket.id }}" data-ultima="{{ mensagens[-1].id if mensagens else 0 }}">
+  <div class="cabeca-bloco">
+    <div>
+      <p class="dica"><a href="{{ '/admin/suporte' if como_suporte else '/suporte' }}">← {{ "Todos os tickets" if como_suporte else "Suas conversas" }}</a></p>
+      <h1>{{ ticket.assunto }}</h1>
+      <p class="dica">
+        {% if como_suporte %}Aberto por <strong>{{ ticket.usuario.username }}</strong> · {% endif %}
+        <span class="ticket-status status-{{ ticket.status }}" id="status-ticket">{{ rotulos[ticket.status] }}</span>
+      </p>
+    </div>
+    <form method="post" action="/suporte/{{ ticket.id }}/status">
+      {% if ticket.status == "fechado" %}
+      <input type="hidden" name="acao" value="reabrir">
+      <button type="submit" class="botao botao-secundario botao-pequeno">Reabrir</button>
+      {% else %}
+      <input type="hidden" name="acao" value="fechar">
+      <button type="submit" class="botao botao-secundario botao-pequeno">Marcar como resolvido</button>
+      {% endif %}
+    </form>
+  </div>
+
+  <ol class="chat" id="chat" aria-live="polite">
+    {% for m in mensagens %}
+    <li class="msg{% if m.minha %} msg-minha{% endif %}{% if m.suporte %} msg-suporte{% endif %}" data-id="{{ m.id }}">
+      <span class="msg-autor">{{ m.autor }}</span>
+      <p class="msg-texto">{{ m.texto }}</p>
+      <time class="msg-quando" datetime="{{ m.quando }}">{{ m.quando_texto }}</time>
+    </li>
+    {% endfor %}
+  </ol>
+  <div id="fim"></div>
+
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+  <p class="alerta alerta-erro" id="erro-chat" role="alert" hidden></p>
+  <form class="compor" id="compor" method="post" action="/suporte/{{ ticket.id }}/mensagens">
+    <label class="visualmente-oculto" for="texto">{{ "Resposta do suporte" if como_suporte else "Sua mensagem" }}</label>
+    <textarea id="texto" name="texto" rows="3" maxlength="4000" required placeholder="{{ 'Responder como suporte…' if como_suporte else 'Escreva uma mensagem…' }}">{{ texto or "" }}</textarea>
+    <button type="submit" class="botao">Enviar</button>
+  </form>
+  {% if ticket.status == "fechado" %}<p class="dica">Esta conversa foi marcada como resolvida. Mandar uma mensagem reabre.</p>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/suporte.js?v={{ versao }}" defer></script>{% endblock %}

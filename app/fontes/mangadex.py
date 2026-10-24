@@ -409,7 +409,7 @@ class MangaDex:
             grupos=grupos,
             total_paginas=atributos.get("pages") or 0,
             publicado_em=_data(atributos.get("publishAt")),
-            link_externo=atributos.get("externalUrl"),
+            link_externo=_url_externa(atributos.get("externalUrl")),
             disponivel=not atributos.get("isUnavailable", False),
             link_original=f"https://mangadex.org/chapter/{dados['id']}",
         )
@@ -432,6 +432,13 @@ def _params_de_tipo(tipos: frozenset[Tipo] | None) -> list[tuple[str, str]]:
     return [
         ("originalLanguage[]", idioma) for idioma, tipo in TIPO_POR_IDIOMA.items() if tipo in tipos
     ]
+
+
+def _url_externa(valor: str | None) -> str | None:
+    # O link vai parar num href da página: só http(s), nunca "javascript:" e afins.
+    if isinstance(valor, str) and valor.lower().startswith(("https://", "http://")):
+        return valor
+    return None
 
 
 def _anilist_id(links: dict | None) -> int | None:

@@ -7,10 +7,19 @@
 {$NAMI_DOMINIO} {
 	encode zstd gzip
 
-	# Mesmo limite de tamanho do envio de .cbz/.cbr no painel (NAMI_UPLOAD_MAX_MB).
-	request_body {
+	# Envio de .cbz/.cbr no painel: mesmo limite da Nami (NAMI_UPLOAD_MAX_MB).
+	# O resto do site só recebe formulários pequenos.
+	@envio path /admin/obras /admin/obras/*
+	request_body @envio {
 		max_size 1GB
 	}
+	@resto not path /admin/obras /admin/obras/*
+	request_body @resto {
+		max_size 1MB
+	}
+
+	# Não conta pra quem acessa qual servidor está rodando.
+	header -Server
 
 	reverse_proxy nami:8000
 

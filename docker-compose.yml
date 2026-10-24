@@ -12,10 +12,21 @@ services:
     environment:
       NAMI_DATA_DIR: /data
       NAMI_COOKIE_SEGURO: "true"  # o acesso de fora é sempre por HTTPS
+      # O .env inteiro vem pra cá, mas o app não precisa do token do túnel:
+      # se alguém achasse uma falha na Nami, não levaria o token junto.
+      CLOUDFLARE_TUNNEL_TOKEN: ""
     volumes:
       - nami_dados:/data  # banco, biblioteca local e cache de capas
     expose:
       - "8000"  # só pros outros serviços daqui; nada fica aberto pra fora
+    # Travas extras: o sistema de arquivos do container é só leitura (o app só
+    # grava em /data), sem privilégios extras do Linux e sem virar root depois.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   caddy:
     image: caddy:2

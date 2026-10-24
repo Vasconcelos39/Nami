@@ -24,8 +24,11 @@ A Nami não guarda scans: o catálogo e as páginas vêm da API oficial do
   onde ler ou comprar oficialmente.
 - **Biblioteca local:** envio de .cbz/.cbr, capa automática, metadados do
   ComicInfo.xml ou buscados no AniList ou no MangaDex.
-- **Reportes:** quem tem conta avisa os admins de capa errada, capítulos
-  faltando e afins.
+- **Reportes e suporte:** quem tem conta avisa os admins de capa errada,
+  capítulos faltando e afins, ou abre uma conversa (tipo chat) com o suporte.
+- **Segurança:** senhas com argon2id, limites contra força bruta, proteção
+  contra CSRF e XSS, cabeçalhos de segurança e container travado. A auditoria
+  completa está na [arquitetura](docs/ARQUITETURA.md#auditoria-de-segurança-out2026).
 - **Deploy:** Docker pra ARM64, HTTPS automático (Caddy) ou Cloudflare Tunnel.
 
 Como tudo funciona por dentro: [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
@@ -38,6 +41,7 @@ Como colocar no ar: [docs/DEPLOY.md](docs/DEPLOY.md).
 - [x] **Fase 3:** biblioteca local (.cbz/.cbr) e painel de admin (obras e usuários)
 - [x] **Fase 4:** regras finais do +18, limite de requisições, cabeçalhos de segurança, Docker e guia de deploy
 - [x] **Fase 5:** celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página
+- [x] **Fase 6:** suporte em forma de chat, auditoria de segurança, clique que rola no leitor e importação pelo terminal
 
 ## Rodar no PC (Windows)
 
@@ -66,6 +70,12 @@ Testes (não usam a internet, MangaDex e AniList são simulados):
 > Arquivos .cbr (RAR) precisam do programa `unar`, `unrar` ou 7-Zip instalado
 > no PC. No Docker ele já vem. Arquivos .cbz funcionam sempre.
 
+Pra adicionar uma pasta inteira de .cbz/.cbr de uma vez (ou arquivos grandes):
+
+```powershell
+.venv\Scripts\python -m app.cli importar "C:\caminho\da\pasta" --titulo "Nome da obra" --tipo manga
+```
+
 ## Configuração
 
 Tudo é opcional no PC. Copie `.env.example` para `.env` e ajuste: idiomas dos
@@ -90,6 +100,10 @@ explicada no arquivo.
 No celular: deslize o dedo ou toque nas laterais pra virar a página, e toque
 no meio pra esconder as barras. Na rolagem contínua, as barras somem sozinhas
 ao descer.
+
+Em "Clique na página" (nas configurações do leitor, ⚙), dá pra fazer o clique
+em cima do mangá rolar a página um pouco pra baixo (pouco, meia tela ou quase
+a tela toda) em vez de esconder as barras.
 
 ## Instalar no celular
 

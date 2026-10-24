@@ -160,6 +160,52 @@ class Favorito(Base):
     criado_em: Mapped[datetime] = mapped_column(default=agora)
 
 
+STATUS_TICKET = ("aberto", "respondido", "fechado")
+
+
+class Ticket(Base):
+    """Conversa com o suporte (os admins).
+
+    aberto = esperando o suporte; respondido = o suporte respondeu e espera a
+    pessoa; fechado = resolvido (uma mensagem nova reabre).
+    """
+
+    __tablename__ = "ticket"
+    __table_args__ = (
+        CheckConstraint(f"status IN ({', '.join(repr(s) for s in STATUS_TICKET)})", name="status"),
+        Index("ix_ticket_status_data", "status", "atualizado_em"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id", ondelete="CASCADE"), index=True)
+    assunto: Mapped[str] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(12), default="aberto")
+    criado_em: Mapped[datetime] = mapped_column(default=agora)
+    atualizado_em: Mapped[datetime] = mapped_column(default=agora)  # última mensagem
+
+    usuario: Mapped[Usuario] = relationship()
+    mensagens: Mapped[list["MensagemTicket"]] = relationship(
+        back_populates="ticket",
+        order_by="MensagemTicket.id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class MensagemTicket(Base):
+    __tablename__ = "mensagem_ticket"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("ticket.id", ondelete="CASCADE"), index=True)
+    autor_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"), index=True)
+    do_suporte: Mapped[bool] = mapped_column(default=False)
+    texto: Mapped[str] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(default=agora)
+
+    ticket: Mapped[Ticket] = relationship(back_populates="mensagens")
+    autor: Mapped[Usuario | None] = relationship()
+
+
 MOTIVOS_REPORTE = ("capa", "capitulos", "informacoes", "classificacao", "outro")
 
 

@@ -50,7 +50,7 @@ Saia e entre de novo no terminal (pra valer a permissão) e teste com
 ## 2. Baixar a Nami
 
 ```bash
-git clone https://github.com/vasconcelos39/nami.git
+git clone https://github.com/Vasconcelos39/Nami.git nami
 cd nami
 cp .env.example .env
 ```
@@ -94,6 +94,10 @@ NAMI_EMAIL=seu-email@exemplo.com
    ```
 
 Não precisa abrir porta nenhuma.
+
+> **Limite da Cloudflare:** pelo túnel, a Cloudflare recusa envios acima de
+> 100 MB. Volumes maiores que isso não sobem pelo painel de admin; use o
+> comando `importar` (veja "Importar arquivos grandes" mais abaixo).
 
 Outras opções do `.env` (idiomas, limites, cadastro aberto) estão explicadas no
 próprio arquivo.
@@ -142,12 +146,35 @@ O ícone da Nami vai pra tela inicial e o site abre como app, sem a barra do
 navegador. Só funciona com HTTPS: pelo IP da rede (`http://192.168…`) o
 navegador não oferece instalar.
 
+## Importar arquivos grandes ou uma coleção inteira
+
+O envio pelo site processa um arquivo por vez e, pelo túnel da Cloudflare, para
+nos 100 MB. Pra volumes grandes ou uma pasta cheia de .cbz/.cbr, copie os
+arquivos pro Orange Pi (pendrive, `scp`…) e importe pelo terminal:
+
+```bash
+# 1. coloca a pasta dentro do volume da Nami
+docker compose cp ./Minha-Obra nami:/data/tmp/importar
+
+# 2. importa todos os .cbz/.cbr da pasta (em ordem de nome) como uma obra nova
+docker compose exec nami python -m app.cli importar /data/tmp/importar --titulo "Minha Obra" --tipo manga
+
+# 3. apaga a cópia (as páginas já foram pra biblioteca). O "-u root" é porque
+#    o "docker compose cp" grava os arquivos como root.
+docker compose exec -u root nami rm -r /data/tmp/importar
+```
+
+Pra acrescentar capítulos a uma obra que já existe, troque `--titulo` por
+`--obra ID` (o ID aparece no endereço da obra: `/obra/local/ID`). Depois, ajuste
+capa, sinopse e o resto pelo painel de admin. Os tipos são `manga`, `manhwa`,
+`manhua` e `hq`; a classificação (`--classificacao`) é `safe` se não disser nada.
+
 ## Dia a dia
 
 | Tarefa | Comando |
 |---|---|
 | Ver os logs | `docker compose logs -f nami` |
-| Atualizar a Nami | `git pull` e depois `docker compose up -d --build` |
+| Atualizar a Nami | `git pull`, `docker compose pull` (Caddy/Cloudflare) e `docker compose up -d --build` |
 | Reiniciar | `docker compose restart nami` |
 | Parar tudo | `docker compose down` (os dados ficam guardados) |
 | Esqueceram a senha | painel `/admin/usuarios` → "Redefinir senha" |
@@ -175,14 +202,25 @@ Guarde as cópias fora do Orange Pi (no PC, num HD externo…).
 - **Deixe abertas pra internet só as portas 80/443** (ou nenhuma, com o túnel).
   O SSH (porta 22) não precisa ficar exposto: use-o só na rede de casa.
 - **Mantenha o sistema atualizado:** `sudo apt update && sudo apt upgrade` de vez em quando.
+- **Feche o cadastro** (`NAMI_CADASTRO_ABERTO=false`) depois de criar as contas
+  que você quer. Enquanto ele estiver aberto, o log da Nami avisa a cada início.
 - **O que a Nami já faz sozinha:**
   - HTTPS e cookie de login só por HTTPS;
   - limite de requisições por IP (120 páginas e 900 imagens por minuto, ajustáveis
-    no `.env`) e bloqueio após 10 senhas erradas;
-  - cabeçalhos contra embutir o site em outros sites;
-  - pedido pros buscadores não indexarem o site.
+    no `.env`; 12 capítulos novos por minuto), contando o bloco inteiro no IPv6;
+  - bloqueio por 15 minutos após 10 senhas erradas de uma rede ou 20 numa mesma conta;
+  - recusa senhas muito comuns e formulários enviados de outros sites;
+  - cabeçalhos de segurança (CSP, contra embutir o site em outros sites etc.) e
+    pedido pros buscadores não indexarem o site;
+  - página de erro genérica, sem detalhes internos (os detalhes vão pro log).
+- **O container também é travado:** sistema de arquivos só leitura (o app só
+  grava em `/data`), sem privilégios extras do Linux, sem rodar como root, e
+  sem acesso ao token do túnel da Cloudflare.
 - **O tamanho máximo de envio** de arquivos é 1 GB (`NAMI_UPLOAD_MAX_MB` e o
-  `request_body` no `Caddyfile`). Se mudar um, mude o outro.
+  `request_body` no `Caddyfile`). Se mudar um, mude o outro. O resto do site
+  aceita no máximo 1 MB por envio.
+- **As versões das dependências ficam travadas** em `constraints.txt`: o Docker
+  monta sempre as mesmas versões que foram testadas.
 
 ## Se algo der errado
 
@@ -195,3 +233,10 @@ Guarde as cópias fora do Orange Pi (no PC, num HD externo…).
   está fora do ar. A biblioteca local continua funcionando.
 - **.cbr não abre:** confira se o arquivo não está corrompido abrindo no PC.
   Dentro do Docker o programa que abre RAR (`unar`) já vem instalado.
+- **Erro "Read-only file system" no log:** alguma parte tentou gravar fora de
+  `/data`. Me mande a mensagem; enquanto isso, dá pra tirar a linha
+  `read_only: true` do `docker-compose.yml` e rodar `docker compose up -d`.
+- **Todo envio de formulário dá "Envio de outro site recusado"** (só com o
+  túnel): no painel da Cloudflare, no Public Hostname da Nami, deixe
+  *HTTP Host Header* em branco (o padrão), pra o endereço do site chegar
+  igual até a Nami.

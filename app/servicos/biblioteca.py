@@ -117,7 +117,7 @@ def _abrir_rar(caminho: Path):
         raise ErroDeImportacao("O arquivo RAR (.cbr) está corrompido.") from erro
 
 
-def _ordem_natural(nome: str) -> list:
+def ordem_natural(nome: str) -> list:
     """"pag2" vem antes de "pag10" (a ordem alfabética pura poria o 10 antes)."""
     return [int(parte) if parte.isdigit() else parte.lower() for parte in re.split(r"(\d+)", nome)]
 
@@ -289,7 +289,7 @@ def importar_capitulo(caminho: Path, dir_biblioteca: Path, obra_id: str) -> Capi
                 raise
             except Exception as erro:  # cada formato tem suas exceções; todas viram mensagem amigável
                 raise ErroDeImportacao("Não consegui ler o arquivo (corrompido ou protegido por senha?).") from erro
-            infos.sort(key=lambda i: _ordem_natural(i.filename))
+            infos.sort(key=lambda i: ordem_natural(i.filename))
             if len(infos) > MAX_PAGINAS:
                 raise ErroDeImportacao(f"O arquivo tem mais de {MAX_PAGINAS} imagens.")
             if sum(i.file_size for i in infos) > MAX_BYTES_DESCOMPACTADOS:

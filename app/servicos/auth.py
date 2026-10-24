@@ -29,6 +29,20 @@ USERNAME = re.compile(r"[A-Za-z0-9_.-]{3,32}")
 SENHA_MINIMA = 8
 SENHA_MAXIMA = 128
 
+# Senhas que aparecem no topo das listas de senhas vazadas: são as primeiras
+# que alguém tenta ao adivinhar. Com 8+ caracteres, sobram estas.
+_SENHAS_COMUNS = frozenset(
+    """
+    12345678 123456789 1234567890 0123456789 87654321 11111111 00000000 12341234
+    123123123 112233445566 password password1 password123 passw0rd senha123
+    senha1234 senha12345 minhasenha qwerty123 qwertyuiop 1q2w3e4r 1q2w3e4r5t
+    abc12345 abcd1234 abcdefgh asdfghjk asdf1234 iloveyou princesa princess
+    admin123 administrator letmein1 welcome1 sunshine football baseball
+    starwars superman dragonball onepiece naruto123 pokemon123 flamengo
+    corinthians palmeiras brasil123 mudar123 trocar123 teste123 testando
+    """.split()
+)
+
 _hasher = PasswordHasher()  # argon2id com os parâmetros recomendados (RFC 9106)
 # Cada hash usa ~64 MB de RAM. Limitar quantos rodam ao mesmo tempo impede que
 # uma enxurrada de logins derrube o Orange Pi por falta de memória.
@@ -78,6 +92,8 @@ def validar_senha(senha: str, username: str) -> None:
         raise ErroDeConta(f"A senha pode ter no máximo {SENHA_MAXIMA} caracteres.")
     if senha.lower() == username.lower():
         raise ErroDeConta("A senha não pode ser igual ao nome de usuário.")
+    if senha.lower() in _SENHAS_COMUNS or len(set(senha)) == 1:
+        raise ErroDeConta("Essa senha é muito comum e fácil de adivinhar. Escolha outra.")
 
 
 # ------------------------------------------------------------------- contas
@@ -166,6 +182,17 @@ def encerrar_sessao(db: Session, token: str) -> None:
     db.commit()
 
 
+def encerrar_outras_sessoes(db: Session, usuario: Usuario, token_atual: str) -> int:
+    """Desconecta a conta de todos os outros aparelhos. Devolve quantos eram."""
+    resultado = db.execute(
+        delete(Sessao).where(
+            Sessao.usuario_id == usuario.id, Sessao.token_hash != _hash_token(token_atual)
+        )
+    )
+    db.commit()
+    return resultado.rowcount
+
+
 # ------------------------------------------------------- limite de tentativas
 
 
@@ -186,11 +213,17 @@ class LimiteTentativas:
         with self._lock:
             return len(self._recentes(chave)) >= self.maximo
 
+    MAXIMO_CHAVES = 10_000  # não deixa a memória crescer sem fim (muitos IPs diferentes)
+
     def registrar(self, chave: str) -> None:
         with self._lock:
             self._recentes(chave).append(self._relogio())
-            if len(self._tentativas) > 10_000:  # não deixa a memória crescer sem fim
-                for outra in [c for c, fila in self._tentativas.items() if not fila]:
+            if len(self._tentativas) > self.MAXIMO_CHAVES:
+                for outra in list(self._tentativas):
+                    if not self._recentes(outra):  # já passou da janela: esquece
+                        del self._tentativas[outra]
+            if len(self._tentativas) > self.MAXIMO_CHAVES:  # ainda demais: esquece as mais antigas
+                for outra in list(self._tentativas)[: self.MAXIMO_CHAVES // 2]:
                     del self._tentativas[outra]
 
     def _recentes(self, chave: str) -> deque[float]:

@@ -1,5 +1,6 @@
 """Renderização das páginas HTML (templates Jinja em app/templates)."""
 
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app import __version__
+from app.servicos import suporte
 from app.servicos.visibilidade import secoes_visiveis
 
 PASTA_APP = Path(__file__).resolve().parent
@@ -40,8 +42,24 @@ NOMES_STATUS = {
 # Quantas obras por página as listagens oferecem (o MangaDex aceita no máximo 100).
 OPCOES_POR_PAGINA = (30, 50, 80, 100)
 
+
+def _versao_dos_estaticos() -> str:
+    """Muda sempre que algum arquivo de app/static muda.
+
+    Vai no endereço do CSS e dos scripts (?v=...). Assim o navegador pode
+    guardar esses arquivos por muito tempo e, mesmo assim, baixa a versão nova
+    assim que ela existe (o endereço muda junto).
+    """
+    resumo = hashlib.sha1()
+    for arquivo in sorted((PASTA_APP / "static").rglob("*")):
+        if arquivo.is_file():  # são poucos e pequenos: ler tudo leva milissegundos
+            resumo.update(arquivo.relative_to(PASTA_APP).as_posix().encode())
+            resumo.update(arquivo.read_bytes())
+    return f"{__version__}-{resumo.hexdigest()[:8]}"
+
+
 templates = Jinja2Templates(directory=PASTA_APP / "templates")
-templates.env.globals["versao"] = __version__
+templates.env.globals["versao"] = _versao_dos_estaticos()
 templates.env.globals["opcoes_por_pagina"] = OPCOES_POR_PAGINA
 templates.env.filters["idioma"] = lambda codigo: NOMES_IDIOMA.get(codigo, codigo)
 templates.env.filters["status"] = lambda status: NOMES_STATUS.get(status, status)
@@ -50,12 +68,23 @@ templates.env.filters["data"] = lambda d: d.strftime("%d/%m/%Y") if isinstance(d
 templates.env.filters["numero"] = lambda n: f"{n:g}" if isinstance(n, (int, float)) else ""
 
 
-def render(request: Request, nome: str, status: int = 200, **contexto):
+def _novidades(request: Request, usuario) -> suporte.Novidades:
+    """Os avisos do menu: respostas novas do suporte (e, pros admins, tickets esperando)."""
+    if usuario is None:
+        return suporte.Novidades()
+    with request.app.state.sessoes() as db:
+        return suporte.novidades(db, usuario)
+
+
+def render(request: Request, nome: str, status: int = 200, /, **contexto):
+    # O "/" deixa request, nome e status só por posição: assim um template pode
+    # receber uma variável chamada "status" sem confundir com o código HTTP.
     usuario = getattr(request.state, "usuario", None)
     contexto = {
         "usuario": usuario,
         "secoes": secoes_visiveis(usuario),
         "cadastro_aberto": request.app.state.config.cadastro_aberto,
+        "novidades": _novidades(request, usuario),
         **contexto,
     }
     return templates.TemplateResponse(request, nome, contexto, status_code=status)

@@ -4,6 +4,7 @@ Rodar em desenvolvimento (na raiz do projeto):
     .venv\\Scripts\\python -m uvicorn app.main:app --reload
 """
 
+import logging
 import mimetypes
 from contextlib import asynccontextmanager
 from urllib.parse import quote, urlsplit
@@ -24,10 +25,18 @@ from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.mangadex import MangaDex
 from app.fontes.registro import criar_registro
 from app.renderizar import PASTA_APP, render
-from app.rotas import admin, catalogo, conta, estante, leitor, midia, reportes
+from app.rotas import admin, catalogo, conta, estante, leitor, midia, reportes, suporte
 from app.servicos.auth import LimiteTentativas, LoginNecessario
 from app.servicos.imagens import CacheCapas
-from app.servicos.protecao import LimiteDeTaxa, cabecalhos_de_seguranca, ip_do_cliente, segundos_retry
+from app.servicos.protecao import (
+    LimiteDeTaxa,
+    cabecalhos_de_seguranca,
+    chave_do_cliente,
+    limite_do_corpo,
+    segundos_retry,
+)
+
+log = logging.getLogger("nami")
 
 METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
 
@@ -44,8 +53,14 @@ def criar_app(
     @asynccontextmanager
     async def ciclo_de_vida(app: FastAPI):
         config.data_dir.mkdir(parents=True, exist_ok=True)
+        config.dir_temporario.mkdir(parents=True, exist_ok=True)  # envios grandes vão pro disco
         aplicar_migracoes(config.database_url)  # cria/atualiza as tabelas
         app.state.capas.limpar()  # apaga capas que ficaram sem uso enquanto o servidor estava parado
+        if config.cookie_seguro and config.cadastro_aberto:
+            log.warning(
+                "O cadastro está aberto: qualquer pessoa na internet pode criar conta. "
+                "Depois de criar as contas que você quer, use NAMI_CADASTRO_ABERTO=false."
+            )
         yield
         app.state.engine.dispose()
 
@@ -61,49 +76,73 @@ def criar_app(
     app.state.capas = CacheCapas(
         config.dir_cache_capas, config.cache_capas_mb, config.capas_dias_sem_uso
     )
-    # Contra quem tenta adivinhar senhas ou criar contas em massa (por IP).
+    # Contra quem tenta adivinhar senhas ou criar contas em massa: por rede (IP)
+    # e, no login, também por conta (muitas redes tentando a mesma conta).
     app.state.limite_login = LimiteTentativas(maximo=10, janela=15 * 60)
+    app.state.limite_login_conta = LimiteTentativas(maximo=20, janela=15 * 60)
     app.state.limite_cadastro = LimiteTentativas(maximo=5, janela=60 * 60)
 
     app.mount("/static", StaticFiles(directory=PASTA_APP / "static"), name="static")
-    for modulo in (catalogo, leitor, midia, conta, estante, reportes, admin):
+    for modulo in (catalogo, leitor, midia, conta, estante, reportes, suporte, admin):
         app.include_router(modulo.router)
 
     limite_paginas = LimiteDeTaxa(config.limite_por_minuto) if config.limite_por_minuto else None
     limite_imagens = (
         LimiteDeTaxa(config.limite_imagens_por_minuto) if config.limite_imagens_por_minuto else None
     )
+    # Abrir um capítulo do MangaDex gasta uma das ~35 consultas por minuto que o
+    # servidor inteiro tem. Este limite impede que uma pessoa só gaste todas.
+    limite_capitulos = LimiteDeTaxa(12) if config.limite_por_minuto else None
     cabecalhos = cabecalhos_de_seguranca(config)
+
+    def _recusar(texto: str, status: int, **extra: str) -> PlainTextResponse:
+        return PlainTextResponse(texto, status_code=status, headers={**extra, **cabecalhos})
 
     @app.middleware("http")
     async def proteger(request: Request, call_next):
-        """Limite de requisições por IP e cabeçalhos de segurança em toda resposta."""
+        """Limites por IP, tamanho máximo do envio e cabeçalhos de segurança em toda resposta."""
         caminho = request.url.path
+        tamanho = request.headers.get("content-length")
+        if tamanho is not None and (not tamanho.isdigit() or int(tamanho) > limite_do_corpo(caminho, config)):
+            return _recusar("Envio grande demais.", 413)
         if not caminho.startswith("/static/") and caminho != "/healthz":
-            limite = limite_imagens if caminho.startswith(("/img/", "/capa/")) else limite_paginas
-            espera = limite.esperar(ip_do_cliente(request)) if limite else 0
-            if espera:
-                return PlainTextResponse(
-                    "Muitas requisições seguidas. Espere um pouco e tente de novo.",
-                    status_code=429,
-                    headers={"Retry-After": segundos_retry(espera), **cabecalhos},
-                )
+            chave = chave_do_cliente(request)
+            limites = [limite_imagens if caminho.startswith(("/img/", "/capa/")) else limite_paginas]
+            if caminho.startswith("/ler/"):
+                limites.append(limite_capitulos)
+            for limite in filter(None, limites):
+                if espera := limite.esperar(chave):
+                    return _recusar(
+                        "Muitas requisições seguidas. Espere um pouco e tente de novo.",
+                        429,
+                        **{"Retry-After": segundos_retry(espera)},
+                    )
         resposta = await call_next(request)
         for nome, valor in cabecalhos.items():
             resposta.headers.setdefault(nome, valor)
+        if caminho.startswith("/static/"):
+            # Com ?v=..., o endereço muda quando o arquivo muda: pode guardar por um ano.
+            # Sem versão (logo, ícones, manifest), o navegador confere antes de usar.
+            guardar = "public, max-age=31536000, immutable" if "v" in request.query_params else "no-cache"
+            resposta.headers.setdefault("Cache-Control", guardar)
         return resposta
 
     @app.middleware("http")
     async def conferir_origem(request: Request, call_next):
         """Recusa formulários e envios vindos de outros sites (proteção contra CSRF).
 
-        O navegador avisa de onde veio o envio no cabeçalho Origin. Se veio de
-        outro endereço, alguém está tentando agir em nome de quem está logado.
+        O navegador avisa de onde veio o envio (cabeçalhos Sec-Fetch-Site,
+        Origin ou, nos mais antigos, Referer). Se veio de outro endereço, alguém
+        está tentando agir em nome de quem está logado.
         """
         if request.method not in METODOS_SEGUROS:
-            origem = request.headers.get("origin")
-            if origem and urlsplit(origem).netloc != request.headers.get("host"):
-                return PlainTextResponse("Envio de outro site recusado.", status_code=403)
+            host = request.headers.get("host")
+            origem = request.headers.get("origin") or request.headers.get("referer")
+            de_fora = request.headers.get("sec-fetch-site") == "cross-site" or (
+                origem is not None and urlsplit(origem).netloc != host
+            )
+            if de_fora:
+                return _recusar("Envio de outro site recusado.", 403)
         return await call_next(request)
 
     @app.get("/healthz", include_in_schema=False)
@@ -153,6 +192,23 @@ def criar_app(
         if erro.status_code == 404:
             return _pagina_404(request)
         return await http_exception_handler(request, erro)
+
+    @app.exception_handler(Exception)
+    async def erro_inesperado(request: Request, erro: Exception):
+        # Página genérica, sem detalhes do erro (que poderiam ajudar um atacante).
+        # O erro completo continua indo pro log do servidor.
+        log.error("Erro em %s %s", request.method, request.url.path, exc_info=erro)
+        try:
+            resposta = render(
+                request, "erro.html", 500,
+                titulo="Algo deu errado",
+                mensagem="Tivemos um problema aqui. Tente de novo daqui a pouco.",
+            )
+        except Exception:
+            resposta = PlainTextResponse("Erro interno.", status_code=500)
+        # Esta resposta sai por fora do middleware "proteger": os cabeçalhos vão aqui.
+        resposta.headers.update(cabecalhos)
+        return resposta
 
     return app
 
