@@ -1,0 +1,63 @@
+# A cada envio pro GitHub: roda os testes e, se passarem, monta a imagem
+# Docker da Nami (pra PC e pra Orange Pi/ARM64) e publica em
+# ghcr.io/vasconcelos39/nami. É dela que o Portainer baixa (deploy/portainer-*.yml),
+# então o Orange Pi não precisa montar nada.
+name: Testes e imagem Docker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  imagem:
+    needs: testes
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write  # publicar no GitHub Container Registry (ghcr.io)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versão da Nami
+        id: versao
+        run: echo "versao=$(grep -oP '(?<=__version__ = ")[^"]+' app/__init__.py)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3  # monta a versão ARM64 num servidor x86
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/vasconcelos39/nami
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.versao.outputs.versao }}
+            type=sha,format=short
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

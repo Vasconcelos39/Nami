@@ -1,0 +1,44 @@
+# Nami no Portainer, com Caddy (HTTPS automático da Let's Encrypt). Precisa abrir
+# as portas 80 e 443 no roteador; não funciona com CGNAT (aí use portainer-tunel.yml).
+# Passo a passo em docs/DEPLOY.md ("Com o Portainer").
+#
+# No Portainer, em "Environment variables", preencha:
+#   NAMI_DOMINIO = seu domínio, ex.: nami-fulano.duckdns.org
+
+services:
+  nami:
+    image: ghcr.io/vasconcelos39/nami:latest  # montada pelo GitHub a cada atualização
+    restart: unless-stopped
+    environment:
+      NAMI_DATA_DIR: /data
+      NAMI_COOKIE_SEGURO: "true"  # o acesso de fora é sempre por HTTPS
+      NAMI_CADASTRO_ABERTO: ${NAMI_CADASTRO_ABERTO:-true}  # false depois de criar as contas
+    volumes:
+      - nami_dados:/data  # banco, biblioteca local e cache de capas
+    # Travas: sistema de arquivos só leitura (o app só grava em /data), sem
+    # privilégios extras do Linux e sem virar root depois.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [nami]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    # Sem Caddyfile: o próprio comando liga o HTTPS do domínio e repassa pra Nami.
+    command: caddy reverse-proxy --from ${NAMI_DOMINIO} --to nami:8000
+    volumes:
+      - caddy_dados:/data  # certificados HTTPS
+      - caddy_config:/config
+
+volumes:
+  nami_dados:
+  caddy_dados:
+  caddy_config:

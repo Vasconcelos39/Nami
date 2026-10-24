@@ -1,0 +1,36 @@
+# Nami no Portainer, com Cloudflare Tunnel: funciona mesmo com CGNAT, sem abrir
+# portas no roteador. Passo a passo em docs/DEPLOY.md ("Com o Portainer").
+#
+# No Portainer, em "Environment variables", preencha:
+#   CLOUDFLARE_TUNNEL_TOKEN = o token do túnel (painel da Cloudflare)
+# E no painel da Cloudflare, no Public Hostname, use o serviço HTTP com a URL nami:8000.
+
+services:
+  nami:
+    image: ghcr.io/vasconcelos39/nami:latest  # montada pelo GitHub a cada atualização
+    restart: unless-stopped
+    environment:
+      NAMI_DATA_DIR: /data
+      NAMI_COOKIE_SEGURO: "true"  # o acesso de fora é sempre por HTTPS
+      NAMI_CADASTRO_ABERTO: ${NAMI_CADASTRO_ABERTO:-true}  # false depois de criar as contas
+    volumes:
+      - nami_dados:/data  # banco, biblioteca local e cache de capas
+    # Travas: sistema de arquivos só leitura (o app só grava em /data), sem
+    # privilégios extras do Linux e sem virar root depois.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on: [nami]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+
+volumes:
+  nami_dados:

@@ -32,7 +32,9 @@ A Nami não guarda scans: o catálogo e as páginas vêm da API oficial do
 - **Deploy:** Docker pra ARM64, HTTPS automático (Caddy) ou Cloudflare Tunnel.
 
 Como tudo funciona por dentro: [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
-Como colocar no ar: [docs/DEPLOY.md](docs/DEPLOY.md).
+Como colocar no ar: [docs/DEPLOY.md](docs/DEPLOY.md) (pelo terminal ou pelo
+Portainer, com a imagem pronta `ghcr.io/vasconcelos39/nami`, que o GitHub monta
+a cada atualização).
 
 ## Estado
 

@@ -35,6 +35,54 @@ aparece em https://ifconfig.me.
   você está em CGNAT. Use o **túnel**, ou peça à operadora um IP público
   (algumas liberam de graça).
 
+## Com o Portainer (jeito mais fácil)
+
+Se o Orange Pi já tem o [Portainer](https://www.portainer.io), não precisa de
+terminal nem de baixar o código: a cada atualização, o GitHub monta a imagem
+da Nami (pra ARM64 também) e publica em `ghcr.io/vasconcelos39/nami`. O
+Portainer só baixa. Escolha antes entre Caddy e túnel (tabela acima).
+
+1. **Confira se a imagem existe.** Depois de cada envio pro GitHub, a aba
+   [Actions](https://github.com/Vasconcelos39/Nami/actions) roda os testes e
+   monta a imagem (uns 10 minutos). Ela aparece em
+   [Packages](https://github.com/Vasconcelos39?tab=packages). Se o pacote
+   estiver como *Private*, abra-o → *Package settings* → *Change visibility* →
+   *Public* (senão o Portainer não consegue baixar).
+2. **Portainer → Stacks → Add stack.** Nome: `nami`. Em *Build method*, escolha
+   *Web editor* e cole o conteúdo de um destes arquivos:
+   - [`deploy/portainer-tunel.yml`](../deploy/portainer-tunel.yml): Cloudflare Tunnel
+     (funciona com CGNAT). No painel da Cloudflare, o Public Hostname aponta pra
+     serviço **HTTP** com URL `nami:8000`.
+   - [`deploy/portainer-caddy.yml`](../deploy/portainer-caddy.yml): Caddy (portas
+     80 e 443 abertas no roteador e o domínio apontando pro seu IP, como na seção 3).
+     As portas 80 e 443 do Orange Pi não podem estar em uso por outro programa.
+3. **Environment variables → Add an environment variable:**
+   - com o túnel: `CLOUDFLARE_TUNNEL_TOKEN` = o token do túnel;
+   - com o Caddy: `NAMI_DOMINIO` = seu domínio (ex.: `nami-fulano.duckdns.org`).
+4. **Deploy the stack.** Na primeira vez o Portainer baixa as imagens; depois os
+   containers ficam verdes em *Containers*.
+5. **Crie a sua conta de admin:** *Containers* → o container da Nami
+   (`nami-nami-1` ou parecido) → *Console* → *Command* `/bin/sh` → *Connect*, e digite:
+
+   ```bash
+   python -m app.cli criar-admin
+   ```
+
+6. **Feche o cadastro** depois de criar as contas: *Stacks* → `nami` → *Editor*,
+   acrescente a variável `NAMI_CADASTRO_ABERTO` = `false` e clique em *Update the stack*.
+
+**Pra atualizar a Nami:** *Stacks* → `nami` → *Editor* → *Update the stack*
+com *Re-pull image and redeploy* ligado. Os dados ficam no volume
+`nami_nami_dados` e não se perdem.
+
+**Pelo Portainer, os comandos do resto deste guia** (`backup`, `importar`,
+`redefinir-senha`) são digitados no *Console* do container, sem o
+`docker compose exec nami` da frente. Pra copiar arquivos pra dentro (ex.: uma
+pasta pra `importar`), use o terminal do Orange Pi:
+`docker cp ./Minha-Obra nami-nami-1:/data/tmp/importar`.
+
+O resto deste guia é o caminho sem Portainer, pelo terminal.
+
 ## 1. Instalar o Docker
 
 Pelo script oficial do Docker (documentado em https://docs.docker.com/engine/install/):
