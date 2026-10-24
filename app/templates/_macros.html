@@ -30,13 +30,24 @@
 </div>
 {% endmacro %}
 
-{# base_url termina em "?" ou "&": a macro só acrescenta pagina=N #}
+{# base_url termina em "?" ou "&": a macro só acrescenta pagina=N (ou por=N).
+   Embaixo, a escolha de quantas obras por página; trocar volta pra página 1. #}
 {% macro paginacao(resultado, base_url) %}
 {% if resultado.total_paginas > 1 %}
 <nav class="paginacao" aria-label="Paginação">
   {% if resultado.pagina > 1 %}<a href="{{ base_url }}pagina={{ resultado.pagina - 1 }}">← Anterior</a>{% else %}<span></span>{% endif %}
   <span>Página {{ resultado.pagina }} de {{ resultado.total_paginas }}</span>
   {% if resultado.pagina < resultado.total_paginas %}<a href="{{ base_url }}pagina={{ resultado.pagina + 1 }}">Próxima →</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% if resultado.total > opcoes_por_pagina[0] %}
+<nav class="por-pagina" aria-label="Obras por página">
+  <span class="suave">Mostrar por página:</span>
+  <span class="abas">
+    {% for n in opcoes_por_pagina %}
+    <a href="{{ base_url }}por={{ n }}"{% if n == resultado.por_pagina %} aria-current="true"{% endif %}>{{ n }}</a>
+    {% endfor %}
+  </span>
 </nav>
 {% endif %}
 {% endmacro %}

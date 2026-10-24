@@ -1,15 +1,24 @@
 <!doctype html>
-<html lang="pt-br">
+{% from "_icones.html" import icone %}
+<html lang="pt-br" data-versao="{{ versao }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# viewport-fit=cover: no iPhone com notch, a página vai até as bordas e o CSS
+     afasta o conteúdo das áreas do relógio e da barra de gestos (safe-area). #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block titulo %}Nami{% endblock %}</title>
   <link rel="icon" href="/static/marca/favicon.ico" sizes="any">
   <link rel="icon" href="/static/marca/nami-favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="/static/marca/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="#0d182c">
+  <meta name="theme-color" content="{% block cor_tema %}#0d182c{% endblock %}">
+  {# Instalada na tela inicial, a Nami abre como app (sem a barra do navegador). #}
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nami">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="/static/css/nami.css?v={{ versao }}">
+  <script src="/static/js/nami.js?v={{ versao }}" defer></script>
 </head>
 <body class="{% block classe_body %}{% endblock %}">
 {% block topo %}
@@ -54,6 +63,19 @@
     A Nami não é afiliada ao MangaDex e não exibe anúncios.
   </p>
 </footer>
+{# Barra de navegação de app: só aparece em telas estreitas (celular). #}
+{% set caminho = request.url.path %}
+<nav class="barra-app" aria-label="Navegação principal">
+  <a href="/"{% if caminho == "/" %} aria-current="page"{% endif %}>{{ icone("inicio") }}<span>Início</span></a>
+  <a href="/busca"{% if caminho == "/busca" %} aria-current="page"{% endif %}>{{ icone("busca") }}<span>Buscar</span></a>
+  {% if usuario %}
+  <a href="/historico"{% if caminho == "/historico" %} aria-current="page"{% endif %}>{{ icone("historico") }}<span>Histórico</span></a>
+  <a href="/favoritos"{% if caminho == "/favoritos" %} aria-current="page"{% endif %}>{{ icone("favoritos") }}<span>Favoritos</span></a>
+  <a href="/conta"{% if caminho == "/conta" or caminho.startswith("/admin") %} aria-current="page"{% endif %}>{{ icone("conta") }}<span>Conta</span></a>
+  {% else %}
+  <a href="/entrar?proximo={{ caminho | urlencode }}"{% if caminho in ("/entrar", "/cadastro") %} aria-current="page"{% endif %}>{{ icone("conta") }}<span>Entrar</span></a>
+  {% endif %}
+</nav>
 {% endblock %}
 {% block scripts %}{% endblock %}
 </body>

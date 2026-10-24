@@ -85,6 +85,7 @@ class Obra(Base):
     status: Mapped[str | None] = mapped_column(String(20))
     ano: Mapped[int | None]
     capa: Mapped[str | None] = mapped_column(String(500))
+    anilist_id: Mapped[int | None]  # a mesma obra no AniList (só obras locais; o MangaDex já informa)
     criado_em: Mapped[datetime] = mapped_column(default=agora)
     atualizado_em: Mapped[datetime] = mapped_column(default=agora, onupdate=agora)
 
@@ -157,3 +158,34 @@ class Favorito(Base):
         ForeignKey("obra.id", ondelete="CASCADE"), primary_key=True
     )
     criado_em: Mapped[datetime] = mapped_column(default=agora)
+
+
+MOTIVOS_REPORTE = ("capa", "capitulos", "informacoes", "classificacao", "outro")
+
+
+class Reporte(Base):
+    """Problema numa obra avisado por alguém logado (capa errada, capítulos faltando...).
+
+    Guarda fonte + id da obra (e não uma chave pra `obra`), porque obras do
+    MangaDex não ficam no banco; o título vai junto pra lista do admin.
+    """
+
+    __tablename__ = "reporte"
+    __table_args__ = (
+        CheckConstraint(f"motivo IN ({', '.join(repr(m) for m in MOTIVOS_REPORTE)})", name="motivo"),
+        Index("ix_reporte_aberto", "resolvido_em", "criado_em"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuario.id", ondelete="SET NULL"), index=True
+    )
+    fonte_id: Mapped[str] = mapped_column(ForeignKey("fonte.id"))
+    obra_externa: Mapped[str] = mapped_column(String(64))  # id da obra dentro da fonte
+    titulo: Mapped[str] = mapped_column(String(500))
+    motivo: Mapped[str] = mapped_column(String(20))
+    detalhe: Mapped[str | None] = mapped_column(Text)
+    criado_em: Mapped[datetime] = mapped_column(default=agora)
+    resolvido_em: Mapped[datetime | None]
+
+    usuario: Mapped[Usuario | None] = relationship()

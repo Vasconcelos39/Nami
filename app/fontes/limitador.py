@@ -60,10 +60,17 @@ class Limitador:
 class JanelaLimite:
     """No máximo `limite` usos a cada `janela` segundos (ex.: 40 por minuto)."""
 
-    def __init__(self, limite: int, janela: float, relogio: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        limite: int,
+        janela: float,
+        relogio: Callable[[], float] = time.monotonic,
+        mensagem: str = "Muitos capítulos abertos no último minuto. Espere um pouco e tente de novo.",
+    ):
         self._limite = limite
         self._janela = janela
         self._relogio = relogio
+        self._mensagem = mensagem
         self._usos: deque[float] = deque()
         self._lock = threading.Lock()
 
@@ -73,7 +80,5 @@ class JanelaLimite:
             while self._usos and self._usos[0] <= agora - self._janela:
                 self._usos.popleft()
             if len(self._usos) >= self._limite:
-                raise FonteIndisponivel(
-                    "Muitos capítulos abertos no último minuto. Espere um pouco e tente de novo."
-                )
+                raise FonteIndisponivel(self._mensagem)
             self._usos.append(agora)

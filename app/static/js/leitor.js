@@ -1,16 +1,24 @@
 // Leitor de páginas da Nami.
 //
 // Dois modos: "paginado" (uma página por vez) e "scroll" (todas em coluna).
-// As preferências ficam no localStorage do navegador. A cada troca de página
-// o leitor dispara o evento "nami:pagina"; com login, o progresso é salvo no
-// servidor a partir dele (ver "progresso de leitura" lá embaixo).
+// As preferências ficam no localStorage do navegador; o modo é guardado
+// separado pra obras em tira (manhwa, que abrem em rolagem) e em páginas
+// (mangá, que abrem paginadas). A cada troca de página o leitor dispara o
+// evento "nami:pagina"; com login, o progresso é salvo no servidor a partir
+// dele (ver "progresso de leitura" lá embaixo).
 (function () {
   "use strict";
 
   const dados = JSON.parse(document.getElementById("dados-leitor").textContent);
   const total = dados.paginas.length;
+  const formato = dados.formato === "tira" ? "tira" : "paginas";
   const CHAVE_PREFS = "nami.leitor";
-  const PADRAO = { modo: "paginado", direcao: "ltr", ajuste: "altura", qualidade: dados.qualidadePadrao };
+  const PADRAO = {
+    modo: formato === "tira" ? "scroll" : "paginado",
+    direcao: "ltr",
+    ajuste: "altura",
+    qualidade: dados.qualidadePadrao,
+  };
 
   const $ = (id) => document.getElementById(id);
   const leitor = $("leitor");
@@ -33,14 +41,18 @@
   // ---------------------------------------------------------- preferências
 
   function carregarPrefs() {
+    let salvas = {};
     try {
-      return Object.assign({}, PADRAO, JSON.parse(localStorage.getItem(CHAVE_PREFS) || "{}"));
+      salvas = JSON.parse(localStorage.getItem(CHAVE_PREFS) || "{}") || {};
     } catch (e) {
-      return Object.assign({}, PADRAO); // navegador sem localStorage (ex.: janela privada)
+      /* navegador sem localStorage (ex.: janela privada): fica no padrão */
     }
+    const modos = salvas.modos || {};
+    return Object.assign({}, PADRAO, salvas, { modos: modos, modo: modos[formato] || PADRAO.modo });
   }
 
   function salvarPrefs() {
+    prefs.modos = Object.assign({}, prefs.modos, { [formato]: prefs.modo });
     try {
       localStorage.setItem(CHAVE_PREFS, JSON.stringify(prefs));
     } catch (e) {
@@ -249,6 +261,8 @@
 
   function aplicarPrefs() {
     leitor.dataset.modo = prefs.modo;
+    document.body.dataset.modo = prefs.modo;
+    alternarBarras(false);
     leitor.dataset.ajuste = prefs.ajuste;
     for (const nome of ["modo", "direcao", "ajuste", "qualidade"]) {
       const radio = painel.querySelector('input[name="' + nome + '"][value="' + prefs[nome] + '"]');
@@ -275,10 +289,57 @@
 
   // ---------------------------------------------------------------- eventos
 
+  function alternarBarras(esconder) {
+    document.body.classList.toggle("ui-oculta", esconder);
+  }
+
   $("zona-esquerda").addEventListener("click", paraEsquerda);
   $("zona-direita").addEventListener("click", paraDireita);
-  imgAtual.addEventListener("click", () => document.body.classList.toggle("ui-oculta"));
+  imgAtual.addEventListener("click", () => alternarBarras());
+  // Na rolagem, tocar numa página mostra/esconde as barras.
+  areaScroll.addEventListener("click", (ev) => {
+    if (!(ev.target instanceof Element) || !ev.target.closest("button")) alternarBarras();
+  });
   botaoConfig.addEventListener("click", () => alternarPainel());
+
+  // Com as configurações abertas, tocar fora fecha o painel (e não vira a página).
+  document.addEventListener("click", (ev) => {
+    if (painel.hidden || !(ev.target instanceof Node)) return;
+    if (painel.contains(ev.target) || botaoConfig.contains(ev.target)) return;
+    alternarPainel(false);
+    ev.preventDefault();
+    ev.stopPropagation();
+  }, true);
+
+  // Deslizar o dedo vira a página no modo paginado: o dedo indo pra esquerda
+  // puxa a página da direita. Com zoom de pinça, o gesto é só pra mover a imagem.
+  let toque = null;
+  const comZoom = () => window.visualViewport && window.visualViewport.scale > 1.05;
+  leitor.addEventListener("touchstart", (ev) => {
+    toque = null;
+    if (prefs.modo !== "paginado" || ev.touches.length !== 1 || comZoom()) return;
+    toque = { x: ev.touches[0].clientX, y: ev.touches[0].clientY, quando: Date.now() };
+  }, { passive: true });
+  leitor.addEventListener("touchend", (ev) => {
+    if (!toque || ev.changedTouches.length !== 1) return;
+    const dx = ev.changedTouches[0].clientX - toque.x;
+    const dy = ev.changedTouches[0].clientY - toque.y;
+    const rapido = Date.now() - toque.quando < 800;
+    toque = null;
+    if (!rapido || Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    ev.preventDefault(); // não deixa o fim do gesto virar também um toque na zona
+    if (dx < 0) paraDireita();
+    else paraEsquerda();
+  }, { passive: false });
+
+  // Na rolagem, as barras somem quando a pessoa desce e voltam quando sobe.
+  let ultimoY = window.scrollY;
+  window.addEventListener("scroll", () => {
+    const y = window.scrollY;
+    if (prefs.modo !== "scroll" || !painel.hidden || Math.abs(y - ultimoY) < 12) return;
+    alternarBarras(y > ultimoY && y > 80);
+    ultimoY = y;
+  }, { passive: true });
   $("seletor-capitulo").addEventListener("change", (ev) => { location.href = ev.target.value; });
 
   barra.addEventListener("input", () => { indicador.textContent = barra.value + " / " + total; });
@@ -311,7 +372,7 @@
       case "[": irCapitulo(dados.anterior, "Não há capítulo anterior"); break;
       case "m": case "M": trocarModo(); break;
       case "f": case "F": telaCheia(); break;
-      case "h": case "H": document.body.classList.toggle("ui-oculta"); break;
+      case "h": case "H": alternarBarras(); break;
       case "c": case "C": alternarPainel(); break;
       case "Escape": alternarPainel(false); break;
       default: return;

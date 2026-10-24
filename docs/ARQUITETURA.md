@@ -22,6 +22,7 @@ A Nami **não guarda scans**. O conteúdo vem de duas fontes legítimas:
 | 2 | Contas, histórico, progresso, favoritos, preferência +18 | pronta |
 | 3 | Biblioteca local (.cbz/.cbr) + painel de admin | pronta |
 | 4 | Regras finais do +18, proteções, Docker, HTTPS, deploy | pronta (o Docker ainda não rodou num Orange Pi de verdade) |
+| 5 | Celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página | pronta |
 
 Deploy passo a passo: [DEPLOY.md](DEPLOY.md).
 
@@ -43,7 +44,9 @@ app/
     registro.py      quais fontes estão ligadas
     mangadex.py      adaptador do MangaDex
     local.py         adaptador da biblioteca local (banco + disco)
-    limitador.py     ritmo das chamadas ao MangaDex
+    limitador.py     ritmo das chamadas ao MangaDex (e ao AniList)
+  catalogos/
+    anilist.py       metadados do AniList: total de capítulos, links oficiais, busca
   servicos/
     visibilidade.py  quem pode ver qual classificação (regra única)
     imagens.py       cache de capas do MangaDex em disco
@@ -52,13 +55,16 @@ app/
     biblioteca.py    abrir .cbz/.cbr, validar imagens, gerar capa, ComicInfo.xml
     acervo.py        criar/editar/remover obras e capítulos locais
     protecao.py      limite de requisições por IP e cabeçalhos de segurança
+    cobertura.py     compara os capítulos daqui com a obra original
+    reportes.py      avisos de problema enviados pelos usuários
   rotas/             catalogo (início, seções, busca, obra), leitor, midia (proxy),
-                     conta, estante, admin
+                     conta, estante, reportes, admin
   templates/         HTML (admin/ = painel)
-  static/            CSS, JS do leitor e do painel, marca/ (logos já tratados)
+  static/            CSS; JS do site (nami.js), do leitor, do painel e o service
+                     worker (sw.js); manifest e tela offline; marca/ (logos já tratados)
 assets/              arte original da marca (os PNGs que você mandou)
 migrations/          Alembic (alterações do banco versionadas)
-tests/               testes (o MangaDex é simulado, sem internet)
+tests/               testes (MangaDex e AniList simulados, sem internet)
 data/                fora do git: nami.db, biblioteca/, cache/capas/, tmp/, backups/
 Dockerfile, docker-compose.yml, Caddyfile   deploy (Fase 4)
 ```
@@ -106,13 +112,16 @@ usuario    id, username (único, ignora maiúsculas), senha_hash, is_admin, ativ
            maioridade_confirmada_em, mostrar_adulto, idioma_preferido, criado_em
 sessao     token_hash (PK), usuario_id, criada_em, expira_em
 obra       id, fonte_id, id_externo, titulo, autor, descricao, tipo, classificacao,
-           status, ano, capa, criado_em, atualizado_em      [único: fonte_id + id_externo]
+           status, ano, capa, anilist_id, criado_em, atualizado_em
+                                                            [único: fonte_id + id_externo]
 tag        id, nome (único)
 obra_tag   obra_id, tag_id
 capitulo   id, obra_id, id_externo, numero, volume, ordem, titulo, idioma, grupo,
            total_paginas, pasta, publicado_em               [único: obra_id + id_externo]
 progresso  usuario_id, capitulo_id, pagina, concluido, atualizado_em
 favorito   usuario_id, obra_id, criado_em
+reporte    id, usuario_id, fonte_id, obra_externa, titulo, motivo, detalhe,
+           criado_em, resolvido_em
 ```
 
 Decisões:
@@ -184,8 +193,10 @@ que vale é o da fonte, não o que o navegador manda.
   4 GB descompactado).
 - **Metadados:** o que o admin deixar em branco vem do `ComicInfo.xml` do
   arquivo, se existir. O número do capítulo/volume sai do ComicInfo ou do nome
-  do arquivo (`Obra v02 c015.cbz`). O botão "Buscar no MangaDex" do painel
-  preenche o formulário com os dados de lá.
+  do arquivo (`Obra v02 c015.cbz`). Os botões "Buscar no AniList" e "Buscar no
+  MangaDex" do painel preenchem o formulário com os dados de lá. Usar o AniList
+  também guarda o `anilist_id`, que liga a obra local aos links oficiais e ao
+  aviso de capítulos faltando (o campo aceita o número ou o link da obra).
 - **Capa:** a primeira página (ou uma imagem enviada), reduzida pra 512×768;
   em webtoons (página muito alta), só o topo.
 - **Trade-off:** o envio é processado na hora, dentro da própria requisição.
@@ -200,8 +211,84 @@ que vale é o da fonte, não o que o navegador manda.
   adicionar/renomear/remover capítulos, remover obra (com confirmação).
 - Usuários: tornar/tirar admin, desativar/reativar (desconecta na hora),
   redefinir senha (gera uma temporária mostrada uma vez só).
+- Reportes: os avisos de problema mandados pelos usuários, com "marcar como
+  resolvido" e "reabrir". O painel mostra quantos estão em aberto.
 - O admin não consegue tirar o próprio acesso nem desativar a própria conta.
 - Pra qualquer outra conta, `/admin` responde 404.
+
+## AniList e capítulos faltando
+
+O MangaDex às vezes tem menos capítulos que a obra: obras licenciadas perdem
+capítulos, e grupos de tradução param no meio. A página da obra compara o que
+dá pra ler aqui com outras referências (`servicos/cobertura.py`):
+
+- **Total da obra original:** do AniList (`chapters`) ou do MangaDex
+  (`lastChapter`). Os dois só informam depois que a obra termina; pra obra em
+  andamento não há total confiável em lugar nenhum.
+- **Outros idiomas:** "em inglês dá pra ler até o cap. 450".
+- **Tradução parada:** obra em andamento cujo último capítulo no idioma tem
+  mais de um ano.
+
+Com isso aparece um aviso e os links oficiais (botão "Ler no site oficial"):
+os do MangaDex (`links.engtl`, `links.raw` e lojas) mais os "links externos"
+do AniList (tipo `STREAMING` = dá pra ler lá; `INFO` = editora). Redes sociais
+ficam de fora. A ordem segue os idiomas da pessoa, e leitura vem antes de loja.
+
+Como a Nami encontra a obra no AniList: o MangaDex informa o id (`links.al`);
+nas obras locais, o admin liga pelo painel. **Não há busca por título
+automática**, porque um título parecido de outra obra daria aviso errado.
+
+Regras do AniList (https://docs.anilist.co, *Terms of use* e *Rate limiting*):
+uso grátis só não comercial; sem usar a API como armazenamento nem coletar o
+catálogo em massa; limite de 30 consultas/min no modo "degradado" atual (o
+normal é 90). A Nami consulta só a obra que alguém abriu, guarda a resposta
+6 h na memória (falhas, 10 min), usa no máximo 25/min e respeita o
+`Retry-After` de um 429. Se o AniList não responder, a página abre sem essa
+parte. `NAMI_ANILIST_ATIVO=false` desliga tudo.
+
+## Reportes
+
+Botão "⚑ Reportar problema" na página da obra (só com login): capa errada,
+capítulos faltando, informações erradas, classificação errada ou outro, com
+um texto opcional (até 1000 caracteres). Mandar o mesmo aviso de novo, ainda
+aberto, só atualiza o texto, e cada conta manda no máximo 10 por dia. Obra
+escondida (ex.: +18 sem opt-in) responde 404 também aqui. Obras do MangaDex
+não ficam no banco, então o reporte guarda fonte + id + título.
+
+## Celular e app instalável
+
+- **Telas estreitas (até 720 px):** o topo vira uma linha só (marca e seções) e
+  aparece uma barra fixa embaixo (Início, Buscar, Histórico, Favoritos, Conta),
+  como num app. A busca vai pra própria página `/busca`; Admin e Sair ficam em
+  "Sua conta". Capas em 3 colunas; na obra, capa pequena ao lado do título e
+  sinopse cortada com "Ler mais".
+- **Leitor:** deslizar o dedo vira a página no modo paginado (com zoom de
+  pinça, o gesto só move a imagem); tocar nas laterais vira, no meio esconde as
+  barras. Manhwa/manhua e obras com a tag *Long Strip* abrem em rolagem
+  contínua; o modo escolhido fica guardado separado pra tiras e pra páginas.
+  Na rolagem, as barras somem ao descer e voltam ao subir.
+- **iPhone com notch:** `viewport-fit=cover` e `env(safe-area-inset-*)`
+  afastam barras e conteúdo do relógio e da barra de gestos.
+- **App instalável (PWA):** manifest com ícones (inclusive o "maskable" que o
+  Android recorta), atalhos (Continuar lendo, Buscar) e um service worker
+  (`/sw.js`). No Chrome/Edge/Samsung Internet aparece "Instalar" (convite na
+  página inicial e em "Sua conta"); no iPhone, a Nami explica o caminho
+  (Compartilhar → Adicionar à Tela de Início).
+- **O service worker não guarda páginas nem imagens:** as páginas mostram
+  dados da conta e as imagens já têm o cache do navegador. Sem internet, ele
+  mostra uma tela "sem conexão". Trade-off: não dá pra ler offline (seria um
+  recurso grande, que ocupa espaço no celular).
+- **Trade-offs:** instalar exige HTTPS (ou `localhost`): abrir pelo IP da rede
+  (`http://192.168…`) não mostra "Instalar". No iPhone, o app instalado tem
+  login separado do Safari (precisa entrar uma vez no app).
+
+## Obras por página
+
+Seções, busca e biblioteca local mostram 30 obras por página; no fim da lista
+dá pra escolher 30, 50, 80 ou 100 (o máximo que o MangaDex devolve de uma vez).
+A escolha fica num cookie (`nami_por_pagina`), então vale pras próximas páginas
+e visitas. Trade-off: com 100, a primeira visita a uma listagem demora mais pra
+mostrar todas as capas (elas passam pelo limitador de 4/s do MangaDex).
 
 ## Proteções gerais (Fase 4)
 
@@ -223,8 +310,10 @@ A paleta vem da arte em `assets/nami band assets/`: azul-marinho de fundo
 (`#0d182c`), azul da onda (`#2f8fe0`) e o creme do nome (`#f4ede1`). Os PNGs
 originais têm fundo azul-marinho, que foi removido (transparente) pra encaixar
 no site sem "quadrado" em volta. Os arquivos prontos estão em
-`app/static/marca/`, junto com favicon, ícone de app e o manifest, que permite
-instalar a Nami na tela inicial do celular. O site é sempre escuro, como a marca.
+`app/static/marca/`, junto com favicon e ícones de app (`icone-maskable-512.png`
+é o ícone do app reduzido sobre fundo azul-marinho, pro recorte do Android).
+O site é sempre escuro, como a marca. Os ícones da barra de baixo são SVG
+desenhados direto no HTML (`templates/_icones.html`).
 
 ## Regras do MangaDex
 
@@ -254,6 +343,9 @@ Comportamentos descobertos testando a API (out/2026):
   página da obra explica isso.
 - Capítulos oficiais (ex.: MangaPlus, Netmarble) vêm com `externalUrl` e sem
   páginas; a Nami mostra um link pro site oficial.
+- A capa principal de uma obra é a do volume mais recente (ex.: Bocchi the
+  Rock! mostra o volume 8, com outra banda da história, não a protagonista).
+  A Nami usa a mesma capa do MangaDex.
 
 ## Trade-offs que valem lembrar
 

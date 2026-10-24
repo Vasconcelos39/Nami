@@ -1,0 +1,12 @@
+{# Ícones de traço (24×24) desenhados em SVG direto no HTML: sem arquivo extra
+   e com a cor do texto em volta (currentColor). #}
+{% macro icone(nome) %}
+<svg class="icone" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  {% if nome == "inicio" %}<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>
+  {% elif nome == "busca" %}<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+  {% elif nome == "historico" %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+  {% elif nome == "favoritos" %}<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>
+  {% elif nome == "conta" %}<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>
+  {% endif %}
+</svg>
+{%- endmacro %}

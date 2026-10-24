@@ -194,6 +194,7 @@ class BibliotecaLocal:
             tags=tuple(sorted(t.nome for t in obra.tags)),
             status=obra.status,
             ano=obra.ano,
+            anilist_id=obra.anilist_id,
         )
 
     def _capitulo(self, capitulo: models.Capitulo, obra: models.Obra) -> Capitulo:

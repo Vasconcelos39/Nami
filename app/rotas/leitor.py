@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Config
 from app.dependencias import obter_config, obter_db, obter_fontes, usuario_atual
-from app.dominio import Capitulo, navegacao
+from app.dominio import Capitulo, Obra, Tipo, navegacao
 from app.fontes.base import NaoEncontrado
 from app.fontes.registro import Registro
 from app.models import Usuario
@@ -18,6 +18,16 @@ router = APIRouter()
 
 def _url(capitulo: Capitulo | None) -> str | None:
     return f"/ler/{capitulo.fonte}/{capitulo.id}" if capitulo else None
+
+
+def formato(obra: Obra) -> str:
+    """"tira" (rolagem vertical, como manhwa/webtoon) ou "paginas" (como mangá).
+
+    O leitor abre as tiras em rolagem contínua e as páginas no modo paginado.
+    """
+    if obra.tipo in (Tipo.MANHWA, Tipo.MANHUA) or "Long Strip" in obra.tags:
+        return "tira"
+    return "paginas"
 
 
 @router.get("/ler/{fonte_id}/{capitulo_id}")
@@ -59,6 +69,7 @@ def ler(
         "anterior": _url(anterior),
         "proximo": _url(proximo),
         "obra": url_obra,
+        "formato": formato(obra),
         "qualidadePadrao": config.qualidade_padrao,
         "salvarProgresso": salvar,
         "paginaSalva": pagina_salva,

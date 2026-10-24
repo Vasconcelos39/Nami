@@ -1,7 +1,7 @@
 """Peças compartilhadas pelos testes.
 
-Nenhum teste fala com o MangaDex de verdade: `ApiFalsa` responde no lugar
-dele e registra cada chamada, pra os testes conferirem o que foi pedido.
+Nenhum teste fala com o MangaDex ou o AniList de verdade: `ApiFalsa` responde
+no lugar deles e registra cada chamada, pra os testes conferirem o que foi pedido.
 """
 
 from collections.abc import Callable
@@ -10,6 +10,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.catalogos.anilist import AniList
 from app.config import Config
 from app.fontes.mangadex import MangaDex
 from app.main import criar_app
@@ -47,7 +48,7 @@ class ApiFalsa:
         chave = (request.method, str(request.url).split("?")[0])
         fila = self._respostas.get(chave)
         if not fila:
-            raise AssertionError(f"Chamada inesperada ao MangaDex: {chave}")
+            raise AssertionError(f"Chamada inesperada: {chave}")
         gerar = fila.pop(0) if len(fila) > 1 else fila[0]
         return gerar()
 
@@ -76,7 +77,12 @@ def mangadex(config, api):
 
 
 @pytest.fixture
-def cliente(config, mangadex):
-    app = criar_app(config, mangadex=mangadex)
+def anilist(config, api):
+    return AniList(config, http=httpx.Client(transport=httpx.MockTransport(api)))
+
+
+@pytest.fixture
+def cliente(config, mangadex, anilist):
+    app = criar_app(config, mangadex=mangadex, anilist=anilist)
     with TestClient(app) as cliente:  # o "with" roda o início do app (migrations)
         yield cliente

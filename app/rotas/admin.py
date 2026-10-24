@@ -13,15 +13,16 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.catalogos.anilist import AniList, FichaAniList
 from app.config import Config
-from app.dependencias import exigir_login, obter_config, obter_db, obter_fontes
+from app.dependencias import exigir_login, obter_anilist, obter_config, obter_db, obter_fontes
 from app.dominio import Classificacao, Filtro, Tipo
 from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.local import FONTE_ID
 from app.fontes.registro import Registro
-from app.models import Capitulo, Obra, Sessao, Usuario
+from app.models import Capitulo, Obra, Reporte, Sessao, Usuario
 from app.renderizar import NOMES_IDIOMA, NOMES_STATUS, render
-from app.servicos import acervo
+from app.servicos import acervo, reportes
 from app.servicos.auth import gerar_hash
 from app.servicos.biblioteca import ErroDeImportacao, salvar_envio
 
@@ -43,6 +44,8 @@ MENSAGENS = {
     "rebaixado": "Essa conta deixou de ser admin.",
     "desativado": "Conta desativada. A pessoa foi desconectada.",
     "reativado": "Conta reativada.",
+    "resolvido": "Reporte marcado como resolvido.",
+    "reaberto": "Reporte reaberto.",
 }
 
 
@@ -62,7 +65,9 @@ def _opcoes(config: Config) -> dict:
     }
 
 
-def _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, idioma) -> acervo.Metadados:
+def _metadados(
+    titulo, autor, descricao, tags, tipo, classificacao, status, ano, idioma, anilist_id=""
+) -> acervo.Metadados:
     return acervo.Metadados(
         titulo=titulo,
         autor=autor,
@@ -73,7 +78,16 @@ def _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano,
         status=status,
         ano=int(ano) if ano.strip().isdigit() else None,
         idioma=idioma,
+        anilist_id=_id_anilist(anilist_id),
     )
+
+
+def _id_anilist(valor: str) -> int | None:
+    """Aceita o número ou o link da obra (https://anilist.co/manga/30013/...)."""
+    valor = valor.strip()
+    if "anilist.co/manga/" in valor:
+        valor = valor.split("anilist.co/manga/", 1)[1].split("/", 1)[0]
+    return int(valor) if valor.isdigit() and len(valor) < 10 else None
 
 
 def _enviados(pilha: ExitStack, arquivos: list[UploadFile], config: Config) -> list[acervo.Envio]:
@@ -115,8 +129,47 @@ def painel(request: Request, _admin: Usuario = Depends(exigir_admin), db: Sessio
             select(func.count()).select_from(Capitulo).join(Obra).where(Obra.fonte_id == FONTE_ID)
         ),
         "usuarios": db.scalar(select(func.count()).select_from(Usuario)),
+        "reportes": reportes.abertos(db),
     }
     return render(request, "admin/painel.html", contagem=contagem)
+
+
+# --------------------------------------------------------------- reportes
+
+
+@router.get("/reportes")
+def lista_reportes(
+    request: Request,
+    resolvidos: bool = False,
+    ok: str | None = None,
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    return render(
+        request,
+        "admin/reportes.html",
+        lista=reportes.listar(db, resolvidos),
+        resolvidos=resolvidos,
+        motivos=reportes.MOTIVOS,
+        mensagem=MENSAGENS.get(ok),
+    )
+
+
+@router.post("/reportes/{reporte_id}")
+def marcar_reporte(
+    reporte_id: int,
+    acao: Texto,
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    reporte = db.get(Reporte, reporte_id)
+    if reporte is None:
+        raise NaoEncontrado(str(reporte_id))
+    resolver = acao == "resolver"
+    reportes.marcar(db, reporte, resolver)
+    # Volta pra lista de onde a pessoa veio.
+    destino = "/admin/reportes?ok=resolvido" if resolver else "/admin/reportes?resolvidos=1&ok=reaberto"
+    return RedirectResponse(destino, status_code=303)
 
 
 # ------------------------------------------------------------------ obras
@@ -154,12 +207,13 @@ def criar_obra(
     status: Texto = "",
     ano: Texto = "",
     idioma: Texto = "pt-br",
+    anilist_id: Texto = "",
     capa: ArquivoOpcional = None,
     config: Config = Depends(obter_config),
     _admin: Usuario = Depends(exigir_admin),
     db: Session = Depends(obter_db),
 ):
-    m = _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, idioma)
+    m = _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, idioma, anilist_id)
     try:
         with ExitStack() as pilha:
             obra, _ = acervo.criar_obra(db, config, m, _enviados(pilha, arquivos, config), _capa(capa))
@@ -182,6 +236,7 @@ def _pagina_obra(request: Request, db: Session, config: Config, obra: Obra, stat
         status=obra.status or "",
         ano=obra.ano,
         idioma=capitulos[-1].idioma if capitulos else config.idiomas[0],
+        anilist_id=obra.anilist_id,
     )
     return render(
         request, "admin/obra.html", status, obra=obra, capitulos=capitulos, m=m, **_opcoes(config), **extra
@@ -212,13 +267,16 @@ def salvar_obra(
     classificacao: Texto = "safe",
     status: Texto = "",
     ano: Texto = "",
+    anilist_id: Texto = "",
     capa: ArquivoOpcional = None,
     config: Config = Depends(obter_config),
     _admin: Usuario = Depends(exigir_admin),
     db: Session = Depends(obter_db),
 ):
     obra = _obra_ou_404(db, obra_id)
-    m = _metadados(titulo, autor, descricao, tags, tipo, classificacao, status, ano, config.idiomas[0])
+    m = _metadados(
+        titulo, autor, descricao, tags, tipo, classificacao, status, ano, config.idiomas[0], anilist_id
+    )
     try:
         acervo.atualizar_obra(db, config, obra, m, _capa(capa))
     except ErroDeImportacao as erro:
@@ -302,13 +360,21 @@ def remover_obra(
 
 
 @router.get("/metadados")
-def buscar_metadados(q: str = "", fontes: Registro = Depends(obter_fontes), _admin: Usuario = Depends(exigir_admin)):
-    """Busca no MangaDex pra preencher o formulário (botão "Buscar no MangaDex")."""
+def buscar_metadados(
+    q: str = "",
+    fonte: str = "mangadex",
+    fontes: Registro = Depends(obter_fontes),
+    anilist: AniList = Depends(obter_anilist),
+    _admin: Usuario = Depends(exigir_admin),
+):
+    """Busca no MangaDex ou no AniList pra preencher o formulário de obra."""
     termo = q.strip()[:200]
     if not termo:
         return []
-    filtro = Filtro(frozenset(Classificacao), termo=termo, idiomas=())
     try:
+        if fonte == "anilist":
+            return [_dados_anilist(f) for f in anilist.buscar(termo)]
+        filtro = Filtro(frozenset(Classificacao), termo=termo, idiomas=())
         resultado = fontes.obter("mangadex").buscar(filtro, 1, 8)
     except FonteIndisponivel as erro:
         return JSONResponse({"erro": str(erro)}, status_code=503)
@@ -322,10 +388,34 @@ def buscar_metadados(q: str = "", fontes: Registro = Depends(obter_fontes), _adm
             "classificacao": o.classificacao.value,
             "status": o.status or "",
             "ano": o.ano or "",
+            "anilist_id": o.anilist_id or "",
             "link": o.link_original,
         }
         for o in resultado.obras
     ]
+
+
+def _dados_anilist(ficha: FichaAniList) -> dict:
+    # O AniList só marca obras explícitas (isAdult); "Ecchi" vira Sugestivo. O admin confere.
+    if ficha.adulto:
+        classificacao = Classificacao.PORNOGRAPHIC
+    elif "Ecchi" in ficha.generos:
+        classificacao = Classificacao.SUGGESTIVE
+    else:
+        classificacao = Classificacao.SAFE
+    return {
+        "titulo": ficha.titulo,
+        "autor": ", ".join(ficha.autores),
+        "descricao": ficha.descricao,
+        "tags": ", ".join(ficha.generos),
+        "tipo": ficha.tipo.value,
+        "classificacao": classificacao.value,
+        "status": ficha.status or "",
+        "ano": ficha.ano or "",
+        "anilist_id": ficha.id,
+        "formato": ficha.formato,
+        "link": ficha.url,
+    }
 
 
 # ---------------------------------------------------------------- usuários

@@ -130,6 +130,18 @@ NAMI_CADASTRO_ABERTO=false
 
 e aplique com `docker compose up -d`.
 
+## 7. Instalar no celular
+
+Com o site no ar em HTTPS, abra o seu domínio no celular:
+
+- **Android:** aparece um convite "Instalar" na página inicial (ou use
+  "Instalar app" no menu do Chrome).
+- **iPhone:** Safari → Compartilhar → "Adicionar à Tela de Início".
+
+O ícone da Nami vai pra tela inicial e o site abre como app, sem a barra do
+navegador. Só funciona com HTTPS: pelo IP da rede (`http://192.168…`) o
+navegador não oferece instalar.
+
 ## Dia a dia
 
 | Tarefa | Comando |

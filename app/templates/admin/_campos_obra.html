@@ -2,13 +2,25 @@
 <div class="busca-metadados" data-busca-metadados>
   <div class="campo">
     <label for="titulo">Título</label>
-    <div class="linha-campo">
-      <input id="titulo" name="titulo" type="text" value="{{ m.titulo }}" maxlength="500"{% if obrigatorio %} required{% endif %}>
-      <button type="button" class="botao botao-secundario" data-buscar>Buscar no MangaDex</button>
+    <input id="titulo" name="titulo" type="text" value="{{ m.titulo }}" maxlength="500"{% if obrigatorio %} required{% endif %}>
+    <div class="acoes">
+      <button type="button" class="botao botao-secundario botao-pequeno" data-buscar="anilist">Buscar no AniList</button>
+      <button type="button" class="botao botao-secundario botao-pequeno" data-buscar="mangadex">Buscar no MangaDex</button>
     </div>
-    <p class="dica">Busca os dados no MangaDex e preenche o formulário. Você confere antes de salvar.</p>
+    <p class="dica">
+      Busca os dados pelo título e preenche o formulário; você confere antes de salvar.
+      Usar os dados do AniList também liga a obra a ele (veja o campo abaixo).
+    </p>
   </div>
   <ul class="resultados-metadados" data-resultados hidden></ul>
+</div>
+<div class="campo">
+  <label for="anilist_id">Obra no AniList</label>
+  <input id="anilist_id" name="anilist_id" type="text" inputmode="numeric" value="{{ m.anilist_id or '' }}" maxlength="80" placeholder="ex.: 30013 ou https://anilist.co/manga/30013">
+  <p class="dica">
+    Opcional. Com isso, a página da obra mostra onde ler oficialmente e avisa quando a
+    biblioteca tem menos capítulos que a obra original.
+  </p>
 </div>
 <div class="campo">
   <label for="autor">Autor(es)</label>

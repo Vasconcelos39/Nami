@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from app.catalogos.anilist import AniList
 from app.config import Config
 from app.fontes.registro import Registro
 from app.models import Usuario
@@ -17,6 +18,10 @@ def obter_config(request: Request) -> Config:
 
 def obter_fontes(request: Request) -> Registro:
     return request.app.state.fontes
+
+
+def obter_anilist(request: Request) -> AniList:
+    return request.app.state.anilist
 
 
 def obter_db(request: Request) -> Iterator[Session]:

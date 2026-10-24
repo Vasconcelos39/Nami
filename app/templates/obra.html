@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% block titulo %}{{ obra.titulo }} · Nami{% endblock %}
 {% block conteudo %}
+{# No computador: capa à esquerda e o resto à direita. No celular: capa pequena
+   ao lado do título, e tags/sinopse/botões embaixo, na largura toda. #}
 <article class="obra">
   <div class="obra-capa">
     <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="Capa de {{ obra.titulo }}">
   </div>
-  <div class="obra-info">
+  <div class="obra-cabeca">
     <h1>{{ obra.titulo }}</h1>
     {% if obra.titulos_alternativos %}<p class="alternativos">{{ obra.titulos_alternativos | join(" · ") }}</p>{% endif %}
     <ul class="metadados">
@@ -15,10 +17,12 @@
       <li class="selo-{{ obra.classificacao }}">{{ obra.classificacao.rotulo }}</li>
     </ul>
     {% if obra.autores %}<p class="autores">{{ obra.autores | join(", ") }}</p>{% endif %}
+  </div>
+  <div class="obra-info">
     {% if obra.tags %}
     <ul class="tags">{% for tag in obra.tags %}<li>{{ tag }}</li>{% endfor %}</ul>
     {% endif %}
-    {% if obra.descricao %}<div class="descricao">{{ obra.descricao }}</div>{% endif %}
+    {% if obra.descricao %}<div class="descricao" data-recolher>{{ obra.descricao }}</div>{% endif %}
     <div class="acoes">
       {% if continuar %}
       {% set cap, pag = continuar %}
@@ -33,10 +37,32 @@
       {% else %}
       <a class="botao botao-secundario" href="/entrar?proximo=/obra/{{ obra.fonte }}/{{ obra.id }}">☆ Favoritar</a>
       {% endif %}
-      {% if obra.link_original %}<a class="botao botao-secundario" href="{{ obra.link_original }}" target="_blank" rel="noopener">Ver no {{ fonte_nome }} ↗</a>{% endif %}
+      {% if cobertura.links %}
+      {# <details> abre e fecha sem JavaScript; o nami.js só fecha ao tocar fora. #}
+      <details class="menu-oficiais" data-menu>
+        <summary class="botao botao-secundario"><span class="so-largo">Ler no site oficial</span><span class="so-estreito">Site oficial</span></summary>
+        <div class="menu-lista">
+          <ul>
+            {% for link in cobertura.links %}
+            <li>
+              <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.site }} ↗</a>
+              <span class="suave">{{ link.idioma | idioma if link.idioma else "" }}{% if not link.leitura %}{{ " · " if link.idioma }}editora ou loja{% endif %}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          <p class="dica">Links oficiais{% if cobertura.ficha_url %} do AniList e{% endif %} do {{ fonte_nome if obra.fonte != 'local' else 'cadastro da obra' }}.</p>
+        </div>
+      </details>
+      {% endif %}
       {% if obra.fonte == 'local' and usuario and usuario.is_admin %}<a class="botao botao-secundario" href="/admin/obras/{{ obra.id }}">Editar</a>{% endif %}
     </div>
-    {% if em_dia %}<p class="suave">Você já leu todos os capítulos disponíveis.</p>{% endif %}
+    {% if em_dia %}<p class="suave">Você já leu todos os capítulos disponíveis{% if cobertura.faltando %}; os próximos só nos sites oficiais{% endif %}.</p>{% endif %}
+    {% if reportado %}<p class="alerta alerta-ok" role="status">Obrigado! O aviso foi enviado pros admins.</p>{% endif %}
+    <p class="links-obra">
+      {% if obra.link_original %}<a href="{{ obra.link_original }}" target="_blank" rel="noopener">Ver no {{ fonte_nome }} ↗</a>{% endif %}
+      {% if cobertura.ficha_url %}<a href="{{ cobertura.ficha_url }}" target="_blank" rel="noopener">Ver no AniList ↗</a>{% endif %}
+      <a href="/obra/{{ obra.fonte }}/{{ obra.id }}/reportar">⚑ Reportar problema</a>
+    </p>
   </div>
 </article>
 
@@ -51,6 +77,32 @@
     </nav>
     {% endif %}
   </div>
+  {% if capitulos and cobertura.tem_aviso %}
+  {% set un = "cap." if cobertura.unidade == "cap" else "vol." %}
+  {% set nome_idioma = idioma | idioma | lower %}
+  <div class="aviso-cobertura" role="note">
+    {% if cobertura.faltando %}
+    <p>
+      <strong>Faltam capítulos aqui.</strong>
+      A obra original tem {{ cobertura.total_original | numero }} {{ "capítulos" if cobertura.unidade == "cap" else "volumes" }}
+      (segundo o {{ cobertura.referencia }}){% if cobertura.ultimo_aqui is not none %}, mas em {{ nome_idioma }} só dá pra ler até o {{ un }} {{ cobertura.ultimo_aqui | numero }}{% endif %}.
+    </p>
+    {% endif %}
+    {% if cobertura.mais_longe %}
+    {% set outro, ultimo = cobertura.mais_longe %}
+    <p>Em <a href="?idioma={{ outro }}">{{ outro | idioma | lower }}</a> dá pra ler até o {{ un }} {{ ultimo | numero }}.</p>
+    {% endif %}
+    {% if cobertura.parada_desde %}
+    <p>O último capítulo em {{ nome_idioma }} saiu em {{ cobertura.parada_desde | data }}, e a obra continua sendo publicada: a tradução pode ter parado.</p>
+    {% endif %}
+    {% if cobertura.links %}
+    <p>
+      Pra continuar de forma oficial:
+      {% for link in cobertura.links[:3] %}<a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.site }}</a>{% if link.idioma %} ({{ link.idioma | idioma | lower }}){% endif %}{{ ", " if not loop.last }}{% endfor %}{% if cobertura.links | length > 3 %}, e outros em “Ler no site oficial”{% endif %}.
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if capitulos %}
   <ol class="lista-capitulos">
     {% for c in capitulos %}
@@ -84,6 +136,12 @@
     Muitas obras licenciadas tiveram os capítulos removidos do MangaDex a pedido dos donos dos direitos.
     {% endif %}
   </p>
+  {% if cobertura.links %}
+  <p class="vazio">
+    Dá pra ler de forma oficial em:
+    {% for link in cobertura.links[:4] %}<a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.site }}</a>{% if link.idioma %} ({{ link.idioma | idioma | lower }}){% endif %}{{ ", " if not loop.last }}{% endfor %}.
+  </p>
+  {% endif %}
   {% endif %}
 </section>
 {% endblock %}

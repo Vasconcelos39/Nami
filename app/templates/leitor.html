@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}{{ capitulo.rotulo }} · {{ obra.titulo }} · Nami{% endblock %}
 {% block classe_body %}pagina-leitor{% endblock %}
+{% block cor_tema %}#0f1b31{% endblock %}
 
 {% block topo %}
 <header class="leitor-topo">
@@ -31,6 +32,10 @@
     <legend>Modo</legend>
     <label><input type="radio" name="modo" value="paginado"> Paginado</label>
     <label><input type="radio" name="modo" value="scroll"> Rolagem contínua</label>
+    <p class="dica">
+      {% if dados.formato == "tira" %}Vale para obras em tira vertical, como manhwas.
+      {% else %}Vale para obras em páginas, como mangás.{% endif %}
+    </p>
   </fieldset>
   <fieldset>
     <legend>Direção do modo paginado</legend>
@@ -48,6 +53,8 @@
     <label><input type="radio" name="qualidade" value="data"> Original</label>
   </fieldset>
   <dl class="atalhos">
+    <dt>Toque</dt><dd>laterais viram a página; o meio esconde as barras</dd>
+    <dt>Deslizar</dt><dd>vira a página (modo paginado)</dd>
     <dt>← → ou A D</dt><dd>virar página</dd>
     <dt>Espaço</dt><dd>avançar</dd>
     <dt>[ ]</dt><dd>capítulo anterior / próximo</dd>

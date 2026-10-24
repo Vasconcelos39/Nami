@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block titulo %}Reportes · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>Reportes</h1>
+    <nav class="abas" aria-label="Situação">
+      <a href="/admin/reportes"{% if not resolvidos %} aria-current="page"{% endif %}>Em aberto</a>
+      <a href="/admin/reportes?resolvidos=1"{% if resolvidos %} aria-current="page"{% endif %}>Resolvidos</a>
+    </nav>
+  </div>
+  {% set aba = 'reportes' %}{% include "admin/_menu.html" %}
+  {% if lista %}
+  <ul class="lista-reportes">
+    {% for r in lista %}
+    <li class="cartao-bloco">
+      <div class="cabeca-bloco">
+        <a href="/obra/{{ r.fonte_id }}/{{ r.obra_externa }}"><strong>{{ r.titulo }}</strong></a>
+        <span class="suave">{{ r.criado_em | data }}</span>
+      </div>
+      <p><span class="cap-marca">{{ motivos.get(r.motivo, r.motivo) }}</span></p>
+      {% if r.detalhe %}<p class="descricao">{{ r.detalhe }}</p>{% endif %}
+      <p class="dica">
+        Por {{ r.usuario.username if r.usuario else "conta apagada" }} ·
+        {{ "biblioteca local" if r.fonte_id == "local" else "MangaDex" }}
+        {% if r.resolvido_em %}· resolvido em {{ r.resolvido_em | data }}{% endif %}
+      </p>
+      <div class="acoes">
+        <form method="post" action="/admin/reportes/{{ r.id }}">
+          <input type="hidden" name="acao" value="{{ 'reabrir' if r.resolvido_em else 'resolver' }}">
+          <button type="submit" class="botao botao-pequeno{% if r.resolvido_em %} botao-secundario{% endif %}">{{ "Reabrir" if r.resolvido_em else "Marcar como resolvido" }}</button>
+        </form>
+        {% if r.fonte_id == "local" %}<a class="botao botao-secundario botao-pequeno" href="/admin/obras/{{ r.obra_externa }}">Editar obra</a>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="vazio">{% if resolvidos %}Nenhum reporte resolvido ainda.{% else %}Nenhum reporte em aberto.{% endif %}</p>
+  {% endif %}
+</div>
+{% endblock %}

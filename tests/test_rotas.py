@@ -1,4 +1,8 @@
+import json
+
 from tests.fabrica import (
+    ANILIST,
+    ANILIST_ID,
     API,
     CAP1,
     CAP2,
@@ -12,6 +16,8 @@ from tests.fabrica import (
     feed,
     lista,
     manga,
+    media_anilist,
+    resposta_anilist,
     servidor,
 )
 
@@ -143,3 +149,107 @@ def test_api_fora_do_ar_mostra_pagina_de_erro(cliente, api):
 
 def test_healthz(cliente):
     assert cliente.get("/healthz").json() == {"ok": True}
+
+
+# ------------------------------------------------- AniList e links oficiais
+
+
+def _obra_com_anilist(api, capitulos=(), **kwargs):
+    links = {"al": str(ANILIST_ID), "raw": "https://comic-fuz.com/manga/72", "amz": "https://www.amazon.co.jp/dp/X"}
+    api.responder("GET", f"{API}/manga/{OBRA}", json={"data": manga(links=links, **kwargs)})
+    api.responder("GET", f"{API}/manga/{OBRA}/feed", json=feed(*capitulos))
+
+
+def test_obra_avisa_capitulos_faltando_e_mostra_links_oficiais(cliente, api):
+    _obra_com_anilist(api, [capitulo(CAP1, numero="1"), capitulo(CAP2, numero="2")])
+    api.responder("POST", ANILIST, json=resposta_anilist(media_anilist(capitulos=116, status="FINISHED")))
+
+    texto = cliente.get(f"/obra/mangadex/{OBRA}").text
+    assert "Faltam capítulos aqui." in texto
+    assert "A obra original tem 116 capítulos" in texto
+    assert "só dá pra ler até o cap. 2" in texto
+    assert "Ler no site oficial" in texto
+    assert "https://mangaplus.shueisha.co.jp/titles/1" in texto  # do AniList
+    assert "https://comic-fuz.com/manga/72" in texto  # do MangaDex
+    assert "editora ou loja" in texto  # a Amazon aparece como loja
+    assert f"https://anilist.co/manga/{ANILIST_ID}" in texto
+    assert json.loads(api.chamadas_para("/")[0].content)["variables"] == {"id": ANILIST_ID}
+
+
+def test_obra_abre_mesmo_com_anilist_fora_do_ar(cliente, api):
+    _obra_com_anilist(api, [capitulo(CAP1, numero="1")])
+    api.responder("POST", ANILIST, json={}, status=502)
+    resposta = cliente.get(f"/obra/mangadex/{OBRA}")
+    assert resposta.status_code == 200
+    assert "Faltam capítulos" not in resposta.text
+    assert "https://comic-fuz.com/manga/72" in resposta.text  # os links do MangaDex continuam
+
+
+def test_obra_sem_capitulos_oferece_leitura_oficial(cliente, api):
+    _obra_com_anilist(api)
+    api.responder("POST", ANILIST, json=resposta_anilist())
+    assert "Dá pra ler de forma oficial em:" in cliente.get(f"/obra/mangadex/{OBRA}").text
+
+
+def test_obra_sem_anilist_nao_consulta_o_anilist(cliente, api):
+    api.responder("GET", f"{API}/manga/{OBRA}", json={"data": manga()})
+    api.responder("GET", f"{API}/manga/{OBRA}/feed", json=feed(capitulo(CAP1)))
+    cliente.get(f"/obra/mangadex/{OBRA}")
+    assert [c for c in api.chamadas if c.url.host == "graphql.anilist.co"] == []
+
+
+# ------------------------------------------------------- obras por página
+
+
+def test_escolher_quantas_obras_por_pagina(cliente, api):
+    api.responder("GET", f"{API}/manga", json=lista(manga(), total=500))
+    resposta = cliente.get("/secao/mangas", params={"por": "80"})
+    assert api.chamadas[-1].url.params["limit"] == "80"
+    assert 'href="/secao/mangas?fonte=mangadex&amp;ordem=populares&amp;por=50"' in resposta.text
+    assert resposta.cookies.get("nami_por_pagina") == "80"
+
+    # A escolha fica lembrada (cookie) nas próximas páginas.
+    cliente.get("/secao/mangas", params={"pagina": 2})
+    assert api.chamadas[-1].url.params["limit"] == "80"
+    assert api.chamadas[-1].url.params["offset"] == "80"
+
+
+def test_valor_por_pagina_fora_da_lista_e_ignorado(cliente, api):
+    api.responder("GET", f"{API}/manga", json=lista(manga()))
+    cliente.get("/secao/mangas", params={"por": "5000"})
+    assert api.chamadas[-1].url.params["limit"] == "30"
+
+
+# ------------------------------------------------------------ app e leitor
+
+
+def test_service_worker_na_raiz(cliente):
+    resposta = cliente.get("/sw.js")
+    assert resposta.status_code == 200
+    assert resposta.headers["content-type"].startswith("text/javascript")
+    assert resposta.headers["cache-control"] == "no-cache"
+
+
+def test_manifest_instalavel(cliente):
+    manifest = cliente.get("/static/manifest.webmanifest").json()
+    assert manifest["display"] == "standalone"
+    assert {"192x192", "512x512"} <= {i["sizes"] for i in manifest["icons"]}
+    assert any(i.get("purpose") == "maskable" for i in manifest["icons"])
+    for icone in manifest["icons"]:
+        assert cliente.get(icone["src"]).status_code == 200
+    assert cliente.get("/static/offline.html").status_code == 200
+
+
+def test_leitor_abre_manhwa_em_rolagem(cliente, api):
+    manhwa = {"result": "ok", "data": capitulo(CAP1, manga_attrs=manga(idioma="ko")["attributes"])}
+    api.responder("GET", f"{API}/chapter/{CAP1}", json=manhwa)
+    api.responder("GET", f"{API}/at-home/server/{CAP1}", json=servidor())
+    api.responder("GET", f"{API}/manga/{OBRA}/feed", json=feed(capitulo(CAP1)))
+    assert '"formato": "tira"' in cliente.get(f"/ler/mangadex/{CAP1}").text
+
+
+def test_leitor_abre_manga_paginado(cliente, api):
+    api.responder("GET", f"{API}/chapter/{CAP1}", json=capitulo_detalhe(CAP1))
+    api.responder("GET", f"{API}/at-home/server/{CAP1}", json=servidor())
+    api.responder("GET", f"{API}/manga/{OBRA}/feed", json=feed(capitulo(CAP1)))
+    assert '"formato": "paginas"' in cliente.get(f"/ler/mangadex/{CAP1}").text

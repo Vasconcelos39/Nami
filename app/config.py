@@ -53,6 +53,10 @@ class Config(BaseSettings):
     mangadex_api: str = "https://api.mangadex.org"
     mangadex_capas: str = "https://uploads.mangadex.org/covers"
     mangadex_report: str = "https://api.mangadex.network/report"
+    # AniList: total de capítulos da obra original e onde ler oficialmente.
+    # false desliga (a página da obra só deixa de mostrar essas informações).
+    anilist_ativo: bool = True
+    anilist_api: str = "https://graphql.anilist.co"
     # O MangaDex exige um User-Agent honesto, que identifique o app.
     user_agent: str = f"Nami/{__version__} (+https://github.com/vasconcelos39/nami)"
 

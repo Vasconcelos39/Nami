@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Reportar problema · {{ obra.titulo }} · Nami{% endblock %}
+{% block conteudo %}
+<form class="formulario cartao-bloco" method="post" action="/obra/{{ obra.fonte }}/{{ obra.id }}/reportar">
+  <h1>Reportar problema</h1>
+  <p class="dica">Em <a href="/obra/{{ obra.fonte }}/{{ obra.id }}">{{ obra.titulo }}</a>. O aviso vai pros admins desta Nami.</p>
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+  <fieldset class="campo">
+    <legend>O que está errado?</legend>
+    {% for valor, rotulo in motivos.items() %}
+    <label class="marcar">
+      <input type="radio" name="motivo" value="{{ valor }}"{% if valor == motivo %} checked{% endif %} required>
+      <span>{{ rotulo }}</span>
+    </label>
+    {% endfor %}
+  </fieldset>
+  <div class="campo">
+    <label for="detalhe">Detalhes (opcional)</label>
+    <textarea id="detalhe" name="detalhe" rows="4" maxlength="1000" placeholder="Ex.: a capa é de outra obra; faltam os capítulos 30 a 45.">{{ detalhe }}</textarea>
+  </div>
+  {% if obra.fonte == 'mangadex' %}
+  <p class="dica">
+    Capa, título e capítulos de obras do MangaDex vêm de lá: o admin pode não conseguir corrigir,
+    mas fica sabendo. Problemas no próprio MangaDex também podem ser reportados no
+    <a href="{{ obra.link_original }}" target="_blank" rel="noopener">site deles</a>.
+  </p>
+  {% endif %}
+  <div class="acoes">
+    <button type="submit" class="botao">Enviar aviso</button>
+    <a class="botao botao-secundario" href="/obra/{{ obra.fonte }}/{{ obra.id }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

@@ -8,6 +8,7 @@
     <a class="numero" href="/admin/obras"><strong>{{ contagem.obras }}</strong><span>obras na biblioteca local</span></a>
     <a class="numero" href="/admin/obras"><strong>{{ contagem.capitulos }}</strong><span>capítulos/volumes</span></a>
     <a class="numero" href="/admin/usuarios"><strong>{{ contagem.usuarios }}</strong><span>contas</span></a>
+    <a class="numero{% if contagem.reportes %} numero-alerta{% endif %}" href="/admin/reportes"><strong>{{ contagem.reportes }}</strong><span>reporte{{ "s" if contagem.reportes != 1 }} em aberto</span></a>
   </div>
   <div class="acoes">
     <a class="botao" href="/admin/obras/nova">Adicionar obra (.cbz/.cbr)</a>

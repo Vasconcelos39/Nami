@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.catalogos.anilist import AniList
 from app.config import Config, get_config
 from app.db import aplicar_migracoes, criar_engine
 from app.dependencias import obter_db
@@ -23,7 +24,7 @@ from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.mangadex import MangaDex
 from app.fontes.registro import criar_registro
 from app.renderizar import PASTA_APP, render
-from app.rotas import admin, catalogo, conta, estante, leitor, midia
+from app.rotas import admin, catalogo, conta, estante, leitor, midia, reportes
 from app.servicos.auth import LimiteTentativas, LoginNecessario
 from app.servicos.imagens import CacheCapas
 from app.servicos.protecao import LimiteDeTaxa, cabecalhos_de_seguranca, ip_do_cliente, segundos_retry
@@ -34,8 +35,10 @@ METODOS_SEGUROS = {"GET", "HEAD", "OPTIONS"}
 mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
-def criar_app(config: Config | None = None, mangadex: MangaDex | None = None) -> FastAPI:
-    """Monta o app. `mangadex` permite aos testes usar um MangaDex simulado."""
+def criar_app(
+    config: Config | None = None, mangadex: MangaDex | None = None, anilist: AniList | None = None
+) -> FastAPI:
+    """Monta o app. `mangadex` e `anilist` permitem aos testes usar versões simuladas."""
     config = config or get_config()
 
     @asynccontextmanager
@@ -54,6 +57,7 @@ def criar_app(config: Config | None = None, mangadex: MangaDex | None = None) ->
     app.state.engine = criar_engine(config.database_url)
     app.state.sessoes = sessionmaker(app.state.engine, expire_on_commit=False)
     app.state.fontes = criar_registro(config, app.state.sessoes, mangadex)
+    app.state.anilist = anilist or AniList(config)
     app.state.capas = CacheCapas(
         config.dir_cache_capas, config.cache_capas_mb, config.capas_dias_sem_uso
     )
@@ -62,7 +66,7 @@ def criar_app(config: Config | None = None, mangadex: MangaDex | None = None) ->
     app.state.limite_cadastro = LimiteTentativas(maximo=5, janela=60 * 60)
 
     app.mount("/static", StaticFiles(directory=PASTA_APP / "static"), name="static")
-    for modulo in (catalogo, leitor, midia, conta, estante, admin):
+    for modulo in (catalogo, leitor, midia, conta, estante, reportes, admin):
         app.include_router(modulo.router)
 
     limite_paginas = LimiteDeTaxa(config.limite_por_minuto) if config.limite_por_minuto else None
@@ -115,6 +119,16 @@ def criar_app(config: Config | None = None, mangadex: MangaDex | None = None) ->
     def favicon():
         # Navegadores pedem /favicon.ico na raiz mesmo com o <link rel="icon"> na página.
         return FileResponse(PASTA_APP / "static" / "marca" / "favicon.ico", headers={"Cache-Control": "public, max-age=604800"})
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker():
+        # Na raiz, e não em /static: o service worker só controla as páginas abaixo
+        # do endereço dele. no-cache faz o navegador conferir sempre se há versão nova.
+        return FileResponse(
+            PASTA_APP / "static" / "js" / "sw.js",
+            media_type="text/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.exception_handler(LoginNecessario)
     async def login_necessario(request: Request, _erro: LoginNecessario):

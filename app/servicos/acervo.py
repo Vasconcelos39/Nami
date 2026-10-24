@@ -39,6 +39,7 @@ class Metadados:
     status: str = ""
     ano: int | None = None
     idioma: str = "pt-br"
+    anilist_id: int | None = None  # preenchido ao usar os dados do AniList
 
     def validar(self, idiomas: list[str]) -> None:
         self.titulo = self.titulo.strip()
@@ -52,6 +53,8 @@ class Metadados:
             raise ErroDeImportacao("Idioma inválido.")
         if self.ano is not None and not 1800 < self.ano < 2200:
             raise ErroDeImportacao("Ano inválido.")
+        if self.anilist_id is not None and not 0 < self.anilist_id < 10**9:
+            raise ErroDeImportacao("Id do AniList inválido.")
 
     def completar_com(self, info: ComicInfo | None, nome_arquivo: str) -> None:
         """Preenche o que o admin deixou em branco com o ComicInfo.xml (ou o nome do arquivo)."""
@@ -118,6 +121,7 @@ def _aplicar(db: Session, obra: Obra, metadados: Metadados) -> None:
     obra.classificacao = metadados.classificacao
     obra.status = metadados.status or None
     obra.ano = metadados.ano
+    obra.anilist_id = metadados.anilist_id
     obra.atualizado_em = agora()
     _definir_tags(db, obra, metadados.tags)
 

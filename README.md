@@ -11,13 +11,21 @@ A Nami não guarda scans: o catálogo e as páginas vêm da API oficial do
 [MangaDex](https://mangadex.org), e a biblioteca local aceita só arquivos
 .cbz/.cbr que você mesmo possui, enviados pelo painel de admin.
 
-- **Leitor:** modo paginado ou rolagem contínua, navegação pelo teclado,
-  direção mangá (direita→esquerda), qualidade econômica ou original.
+- **Leitor:** modo paginado ou rolagem contínua (manhwas já abrem em rolagem),
+  navegação pelo teclado ou deslizando o dedo, direção mangá (direita→esquerda),
+  qualidade econômica ou original.
+- **Celular:** layout próprio, com barra de navegação embaixo, e dá pra
+  instalar como app na tela inicial (Android e iPhone).
 - **Contas:** continuar de onde parou, histórico, favoritos, idioma preferido.
 - **Classificação etária:** visitante vê só conteúdo livre, quem tem conta vê
   também o sugestivo, e o +18 só aparece pra quem ativa e confirma a maioridade.
+- **Leitura oficial:** com dados do [AniList](https://anilist.co), a página da
+  obra avisa quando faltam capítulos (licenciamento, tradução parada) e mostra
+  onde ler ou comprar oficialmente.
 - **Biblioteca local:** envio de .cbz/.cbr, capa automática, metadados do
-  ComicInfo.xml ou buscados no MangaDex.
+  ComicInfo.xml ou buscados no AniList ou no MangaDex.
+- **Reportes:** quem tem conta avisa os admins de capa errada, capítulos
+  faltando e afins.
 - **Deploy:** Docker pra ARM64, HTTPS automático (Caddy) ou Cloudflare Tunnel.
 
 Como tudo funciona por dentro: [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
@@ -29,6 +37,7 @@ Como colocar no ar: [docs/DEPLOY.md](docs/DEPLOY.md).
 - [x] **Fase 2:** contas, histórico, "continuar de onde parou", favoritos e opção +18 por conta
 - [x] **Fase 3:** biblioteca local (.cbz/.cbr) e painel de admin (obras e usuários)
 - [x] **Fase 4:** regras finais do +18, limite de requisições, cabeçalhos de segurança, Docker e guia de deploy
+- [x] **Fase 5:** celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página
 
 ## Rodar no PC (Windows)
 
@@ -48,7 +57,7 @@ promova-a:
 .venv\Scripts\python -m app.cli promover SEU-NOME
 ```
 
-Testes (não usam a internet, o MangaDex é simulado):
+Testes (não usam a internet, MangaDex e AniList são simulados):
 
 ```powershell
 .venv\Scripts\python -m pytest
@@ -62,7 +71,8 @@ Testes (não usam a internet, o MangaDex é simulado):
 Tudo é opcional no PC. Copie `.env.example` para `.env` e ajuste: idiomas dos
 capítulos (padrão: português, depois inglês), qualidade padrão das imagens,
 cache de capas, tamanho máximo de envio, limites de requisição, cadastro
-aberto ou fechado e duração do login. Cada opção está explicada no arquivo.
+aberto ou fechado, duração do login e a consulta ao AniList. Cada opção está
+explicada no arquivo.
 
 ## Atalhos do leitor
 
@@ -77,7 +87,19 @@ aberto ou fechado e duração do login. Cada opção está explicada no arquivo.
 | H | esconder as barras |
 | C | configurações (modo, direção, tamanho, qualidade) |
 
-No celular: toque nas laterais pra virar a página e no meio pra esconder as barras.
+No celular: deslize o dedo ou toque nas laterais pra virar a página, e toque
+no meio pra esconder as barras. Na rolagem contínua, as barras somem sozinhas
+ao descer.
+
+## Instalar no celular
+
+Com a Nami aberta em HTTPS (como fica depois do [deploy](docs/DEPLOY.md)):
+
+- **Android (Chrome, Edge, Samsung Internet):** toque em "Instalar" no convite
+  da página inicial ou em "Sua conta", ou use "Instalar app" no menu do navegador.
+- **iPhone (Safari):** toque em Compartilhar (o quadrado com a seta) e depois
+  em "Adicionar à Tela de Início". No iPhone, o app tem login separado do
+  Safari: entre na sua conta uma vez dentro do app.
 
 ## Créditos
 
@@ -85,5 +107,8 @@ Dados e imagens do catálogo: [MangaDex](https://mangadex.org). As traduções
 são dos grupos de scan creditados em cada capítulo. A Nami não é afiliada ao
 MangaDex e não exibe anúncios, como exigem os
 [termos da API](https://api.mangadex.org/docs/).
+
+Total de capítulos e links oficiais: [AniList](https://anilist.co), usado
+de forma não comercial, como pedem os [termos deles](https://docs.anilist.co/guide/terms-of-use).
 
 Licença: MIT.

@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.models import Capitulo, Favorito, Obra, Progresso, Sessao, Usuario
 from tests.ajudantes import cadastrar, cbz, cbz_simples, consultar, contar, entrar, imagem, sair, tornar_admin
-from tests.fabrica import API, lista, manga
+from tests.fabrica import ANILIST, ANILIST_ID, API, lista, manga, media_anilist, resposta_anilist
 
 
 @pytest.fixture
@@ -189,6 +189,31 @@ def test_buscar_metadados_no_mangadex(admin, api):
     assert (dados[0]["tipo"], dados[0]["classificacao"], dados[0]["autor"]) == ("manhwa", "suggestive", "Autora Teste")
     # o admin busca em todas as classificações
     assert api.chamadas[0].url.params.get_list("contentRating[]") == ["erotica", "pornographic", "safe", "suggestive"]
+
+
+def test_buscar_metadados_no_anilist(admin, api):
+    api.responder("POST", ANILIST, json={"data": {"Page": {"media": [media_anilist(generos=("Comedy", "Ecchi"))]}}})
+    [dados] = admin.get("/admin/metadados", params={"q": "obra", "fonte": "anilist"}).json()
+    assert (dados["titulo"], dados["anilist_id"], dados["tipo"]) == ("Obra Teste", ANILIST_ID, "manga")
+    assert (dados["autor"], dados["tags"], dados["classificacao"]) == ("Autora Teste", "Comedy, Ecchi", "suggestive")
+    assert dados["descricao"].startswith("Primeira linha.")
+
+
+def test_anilist_fora_do_ar_na_busca_do_admin(admin, api):
+    api.responder("POST", ANILIST, json={}, status=500)
+    resposta = admin.get("/admin/metadados", params={"q": "obra", "fonte": "anilist"})
+    assert resposta.status_code == 503
+    assert "AniList" in resposta.json()["erro"]
+
+
+def test_obra_local_ligada_ao_anilist_avisa_capitulos_faltando(admin, api):
+    obra_id = id_da_obra(enviar_obra(admin, anilist_id=f"https://anilist.co/manga/{ANILIST_ID}/obra-teste"))
+    assert consultar(admin, select(Obra.anilist_id)) == [ANILIST_ID]  # aceita o link e guarda só o número
+
+    api.responder("POST", ANILIST, json=resposta_anilist(media_anilist(capitulos=40, status="FINISHED")))
+    pagina = admin.get(f"/obra/local/{obra_id}").text
+    assert "A obra original tem 40 capítulos" in pagina
+    assert "https://mangaplus.shueisha.co.jp/titles/1" in pagina
 
 
 # ---------------------------------------------------------------- usuários

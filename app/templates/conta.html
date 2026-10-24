@@ -5,6 +5,19 @@
   <div class="cabeca-bloco"><h1>Sua conta</h1><span class="suave">{{ usuario.username }}</span></div>
   {% if mensagem %}<p class="alerta alerta-ok" role="status">{{ mensagem }}</p>{% endif %}
 
+  {# No celular o topo não mostra esses links: eles ficam aqui. #}
+  <div class="acoes conta-atalhos">
+    {% if usuario.is_admin %}<a class="botao botao-secundario" href="/admin">Painel de admin</a>{% endif %}
+    <form action="/sair" method="post"><button type="submit" class="botao botao-secundario">Sair da conta</button></form>
+  </div>
+
+  {# Preenchido pelo static/js/nami.js, que sabe se dá pra instalar neste navegador. #}
+  <section class="cartao-bloco" data-instalar hidden>
+    <h2>App no celular</h2>
+    <p class="dica" data-instalar-texto></p>
+    <button type="button" class="botao" data-instalar-botao hidden>Instalar a Nami</button>
+  </section>
+
   <form class="cartao-bloco" method="post" action="/conta/preferencias">
     <h2>Preferências</h2>
     {% if erro_preferencias %}<p class="alerta alerta-erro" role="alert">{{ erro_preferencias }}</p>{% endif %}

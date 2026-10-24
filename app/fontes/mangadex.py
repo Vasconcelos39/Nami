@@ -30,11 +30,13 @@ from app.dominio import (
     Classificacao,
     Filtro,
     Imagem,
+    LinkOficial,
     Obra,
     Ordem,
     Pagina,
     PaginaDeResultados,
     Tipo,
+    nome_do_site,
 )
 from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.limitador import JanelaLimite, Limitador
@@ -384,6 +386,9 @@ class MangaDex:
             status=atributos.get("status"),
             ano=atributos.get("year"),
             link_original=f"https://mangadex.org/title/{obra_id}",
+            anilist_id=_anilist_id(atributos.get("links")),
+            links_oficiais=_links_oficiais(atributos.get("links"), atributos.get("originalLanguage")),
+            ultimo_capitulo=atributos.get("lastChapter") or None,
         )
 
     def _converter_capitulo(self, dados: dict, obra_id: str) -> Capitulo:
@@ -427,6 +432,38 @@ def _params_de_tipo(tipos: frozenset[Tipo] | None) -> list[tuple[str, str]]:
     return [
         ("originalLanguage[]", idioma) for idioma, tipo in TIPO_POR_IDIOMA.items() if tipo in tipos
     ]
+
+
+def _anilist_id(links: dict | None) -> int | None:
+    valor = str((links or {}).get("al") or "")
+    return int(valor) if valor.isdigit() else None
+
+
+# Chaves de "links" do MangaDex que levam a lugares oficiais. engtl = tradução
+# oficial em inglês, raw = publicação original; as outras são lojas.
+_LINKS_LOJAS = {
+    "bw": "https://bookwalker.jp/",  # o valor é um caminho, ex.: "series/191669/list"
+    "amz": "",
+    "ebj": "",
+    "cdj": "",
+}
+
+
+def _links_oficiais(links: dict | None, idioma_original: str | None) -> tuple[LinkOficial, ...]:
+    links = links or {}
+    encontrados = []
+    for chave, idioma in (("engtl", "en"), ("raw", idioma_original)):
+        url = links.get(chave)
+        if isinstance(url, str) and url.startswith("https://"):
+            encontrados.append(LinkOficial(nome_do_site(url), url, idioma, leitura=True))
+    for chave, prefixo in _LINKS_LOJAS.items():
+        valor = links.get(chave)
+        if not isinstance(valor, str) or not valor:
+            continue
+        url = prefixo + valor if prefixo else valor
+        if url.startswith("https://"):
+            encontrados.append(LinkOficial(nome_do_site(url), url, idioma_original, leitura=False))
+    return tuple(encontrados)
 
 
 def _validar_id(valor: str) -> None:

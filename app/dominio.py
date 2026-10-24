@@ -12,6 +12,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from urllib.parse import urlsplit
 
 
 class Classificacao(StrEnum):
@@ -75,6 +76,16 @@ class Filtro:
 
 
 @dataclass(frozen=True)
+class LinkOficial:
+    """Onde ler ou comprar a obra de forma legítima (app, site da revista, editora, loja)."""
+
+    site: str
+    url: str
+    idioma: str | None = None  # código como "pt-br", "en", "ja"; None quando não informado
+    leitura: bool = True  # True: dá pra ler lá; False: página de editora ou loja
+
+
+@dataclass(frozen=True)
 class Obra:
     fonte: str
     id: str  # id dentro da fonte (no MangaDex, o UUID)
@@ -89,6 +100,9 @@ class Obra:
     status: str | None = None
     ano: int | None = None
     link_original: str | None = None  # página da obra na fonte (crédito)
+    anilist_id: int | None = None  # a mesma obra no AniList (catálogo de metadados)
+    links_oficiais: tuple[LinkOficial, ...] = ()
+    ultimo_capitulo: str | None = None  # número do capítulo final, quando a obra já terminou
 
 
 @dataclass(frozen=True)
@@ -168,6 +182,60 @@ class PaginaDeResultados:
     @property
     def total_paginas(self) -> int:
         return math.ceil(self.total / self.por_pagina) if self.total else 0
+
+
+# Nomes bonitos pros sites oficiais mais comuns; os outros aparecem pelo domínio.
+_NOMES_DE_SITES = {
+    "mangaplus.shueisha.co.jp": "MANGA Plus",
+    "webtoons.com": "WEBTOON",
+    "viz.com": "VIZ",
+    "yenpress.com": "Yen Press",
+    "kodansha.us": "Kodansha",
+    "comic-fuz.com": "COMIC FUZ",
+    "bookwalker.jp": "BookWalker",
+    "amazon.co.jp": "Amazon Japão",
+    "amazon.com": "Amazon",
+    "ebookjapan.yahoo.co.jp": "ebookjapan",
+    "cdjapan.co.jp": "CDJapan",
+    "tapas.io": "Tapas",
+    "tappytoon.com": "Tappytoon",
+    "pocketcomics.com": "Pocket Comics",
+}
+
+
+def _dominio(url: str) -> str:
+    host = (urlsplit(url).hostname or "").lower()
+    return host.removeprefix("www.")
+
+
+def nome_do_site(url: str) -> str:
+    dominio = _dominio(url)
+    for conhecido, nome in _NOMES_DE_SITES.items():
+        if dominio == conhecido or dominio.endswith("." + conhecido):
+            return nome
+    return dominio or url
+
+
+def juntar_links(
+    *listas: Iterable[LinkOficial], idiomas_primeiro: Sequence[str] = ()
+) -> list[LinkOficial]:
+    """Junta links de várias origens sem repetir, na ordem em que vão aparecer.
+
+    Primeiro os que dá pra ler (antes das lojas), e dentro disso os idiomas
+    que a pessoa lê, na ordem de `idiomas_primeiro`.
+    """
+    vistos: dict[str, LinkOficial] = {}
+    for lista in listas:
+        for link in lista:
+            chave = _dominio(link.url) + urlsplit(link.url).path.rstrip("/").lower()
+            vistos.setdefault(chave, link)
+
+    def prioridade(link: LinkOficial) -> tuple[bool, int]:
+        idioma = link.idioma or ""
+        posicao = idiomas_primeiro.index(idioma) if idioma in idiomas_primeiro else len(idiomas_primeiro)
+        return (not link.leitura, posicao)
+
+    return sorted(vistos.values(), key=prioridade)
 
 
 def um_por_numero(capitulos: Iterable[Capitulo], atual: Capitulo) -> list[Capitulo]:

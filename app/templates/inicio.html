@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% from "_macros.html" import grade, cartao_continuar %}
 {% block conteudo %}
+{# Convite pra instalar como app: o static/js/nami.js só mostra quando o navegador permite. #}
+<aside class="convite-instalar" data-instalar data-convite hidden>
+  <img src="/static/marca/icone-192.png" alt="" width="48" height="48">
+  <div>
+    <strong>Instale a Nami no celular</strong>
+    <p data-instalar-texto></p>
+  </div>
+  <button type="button" class="botao botao-pequeno" data-instalar-botao hidden>Instalar</button>
+  <button type="button" class="botao-link fechar" data-instalar-fechar aria-label="Agora não" title="Agora não">✕</button>
+</aside>
 {% if not usuario %}
 <section class="boas-vindas">
   <img src="/static/marca/nami-logo.png" alt="Nami" width="200" height="189">
