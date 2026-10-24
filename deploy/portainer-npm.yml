@@ -1,0 +1,38 @@
+# Nami no Portainer atrás do Nginx Proxy Manager (NPM), que já cuida do HTTPS.
+# Serve também pra quem tem a porta 80 bloqueada pela operadora. Passo a passo
+# em docs/DEPLOY.md ("Com o Portainer").
+#
+# No Portainer, em "Environment variables", preencha:
+#   REDE_DO_NPM = nome da rede Docker do Nginx Proxy Manager
+#                 (Containers → container do NPM → "Connected networks")
+# No NPM, crie um Proxy Host pro seu domínio: http, nami, porta 8000.
+
+services:
+  nami:
+    image: ghcr.io/vasconcelos39/nami:latest  # montada pelo GitHub a cada atualização
+    container_name: nami  # nome fixo: é o que o NPM usa pra encontrar a Nami
+    restart: unless-stopped
+    environment:
+      NAMI_DATA_DIR: /data
+      NAMI_COOKIE_SEGURO: "true"  # o acesso de fora é sempre por HTTPS (pelo NPM)
+      NAMI_CADASTRO_ABERTO: ${NAMI_CADASTRO_ABERTO:-true}  # false depois de criar as contas
+    volumes:
+      - nami_dados:/data  # banco, biblioteca local e cache de capas
+    networks:
+      - proxy  # a mesma rede do NPM; nenhuma porta fica aberta no Orange Pi
+    # Travas: sistema de arquivos só leitura (o app só grava em /data), sem
+    # privilégios extras do Linux e sem virar root depois.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  proxy:
+    external: true
+    name: ${REDE_DO_NPM}
+
+volumes:
+  nami_dados:

@@ -50,6 +50,9 @@ Portainer só baixa. Escolha antes entre Caddy e túnel (tabela acima).
    *Public* (senão o Portainer não consegue baixar).
 2. **Portainer → Stacks → Add stack.** Nome: `nami`. Em *Build method*, escolha
    *Web editor* e cole o conteúdo de um destes arquivos:
+   - [`deploy/portainer-npm.yml`](../deploy/portainer-npm.yml): se você já usa o
+     **Nginx Proxy Manager** pro HTTPS (serve também com a porta 80 bloqueada
+     pela operadora). Veja "Atrás do Nginx Proxy Manager" logo abaixo.
    - [`deploy/portainer-tunel.yml`](../deploy/portainer-tunel.yml): Cloudflare Tunnel
      (funciona com CGNAT). No painel da Cloudflare, o Public Hostname aponta pra
      serviço **HTTP** com URL `nami:8000`.
@@ -57,12 +60,14 @@ Portainer só baixa. Escolha antes entre Caddy e túnel (tabela acima).
      80 e 443 abertas no roteador e o domínio apontando pro seu IP, como na seção 3).
      As portas 80 e 443 do Orange Pi não podem estar em uso por outro programa.
 3. **Environment variables → Add an environment variable:**
+   - com o NPM: `REDE_DO_NPM` = o nome da rede do Nginx Proxy Manager;
    - com o túnel: `CLOUDFLARE_TUNNEL_TOKEN` = o token do túnel;
    - com o Caddy: `NAMI_DOMINIO` = seu domínio (ex.: `nami-fulano.duckdns.org`).
 4. **Deploy the stack.** Na primeira vez o Portainer baixa as imagens; depois os
    containers ficam verdes em *Containers*.
 5. **Crie a sua conta de admin:** *Containers* → o container da Nami
-   (`nami-nami-1` ou parecido) → *Console* → *Command* `/bin/sh` → *Connect*, e digite:
+   (`nami` com o NPM; `nami-nami-1` ou parecido nos outros) → *Console* →
+   *Command* `/bin/sh` → *Connect*, e digite:
 
    ```bash
    python -m app.cli criar-admin
@@ -70,6 +75,35 @@ Portainer só baixa. Escolha antes entre Caddy e túnel (tabela acima).
 
 6. **Feche o cadastro** depois de criar as contas: *Stacks* → `nami` → *Editor*,
    acrescente a variável `NAMI_CADASTRO_ABERTO` = `false` e clique em *Update the stack*.
+
+### Atrás do Nginx Proxy Manager
+
+O NPM recebe o acesso de fora, cuida do certificado HTTPS e repassa pra Nami
+pela rede Docker dos dois. Nenhuma porta nova é aberta.
+
+1. **Ache a rede do NPM:** no Portainer, *Containers* → o container do NPM →
+   seção *Connected networks*. O nome costuma ser algo como `npm_default` ou
+   `nginx-proxy-manager_default`. Esse nome vai na variável `REDE_DO_NPM`.
+   (Se aparecer só `bridge`, a rede padrão não deixa um container achar o
+   outro pelo nome: crie uma rede em *Networks → Add network*, ligue o NPM nela
+   em *Containers → NPM → Join a network* e use o nome dela.)
+2. **Suba a stack** com `deploy/portainer-npm.yml` (passos 2 a 4 acima).
+3. **No NPM → Hosts → Proxy Hosts → Add Proxy Host:**
+   - *Details:* o seu domínio; *Scheme* `http`; *Forward Hostname* `nami`;
+     *Forward Port* `8000`. *Websockets* não precisa.
+   - *SSL:* o certificado que você já usa (ou peça um novo), com *Force SSL* e
+     *HTTP/2* ligados. Não precisa ligar o HSTS do NPM: a Nami já manda o dela.
+   - *Advanced:* cole isto, pro envio de .cbz/.cbr grandes no painel de admin
+     (até 1 GB, e o Orange Pi pode levar alguns minutos pra processar):
+
+     ```nginx
+     client_max_body_size 1024m;
+     proxy_read_timeout 600s;
+     proxy_send_timeout 600s;
+     ```
+
+Se o HTTPS do NPM estiver numa porta diferente da 443 (ex.: `:8443` por causa
+da operadora), tudo funciona igual; o endereço só leva a porta no final.
 
 **Pra atualizar a Nami:** *Stacks* → `nami` → *Editor* → *Update the stack*
 com *Re-pull image and redeploy* ligado. Os dados ficam no volume

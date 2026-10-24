@@ -136,10 +136,12 @@ def criar_app(
         está tentando agir em nome de quem está logado.
         """
         if request.method not in METODOS_SEGUROS:
-            host = request.headers.get("host")
+            # Compara só o nome do site, sem a porta: proxies como o Nginx Proxy
+            # Manager repassam o Host sem a porta (ex.: HTTPS numa porta que não é a 443).
+            host = urlsplit("//" + request.headers.get("host", "")).hostname or ""
             origem = request.headers.get("origin") or request.headers.get("referer")
             de_fora = request.headers.get("sec-fetch-site") == "cross-site" or (
-                origem is not None and urlsplit(origem).netloc != host
+                origem is not None and (urlsplit(origem).hostname or "") != host
             )
             if de_fora:
                 return _recusar("Envio de outro site recusado.", 403)

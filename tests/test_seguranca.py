@@ -98,6 +98,21 @@ def test_envio_do_proprio_site_passa(cliente):
     assert resposta.status_code == 303
 
 
+def test_proxy_que_tira_a_porta_do_host(cliente):
+    # HTTPS numa porta que não é a 443, atrás de um proxy que repassa o Host sem porta.
+    cadastrar(cliente)
+    cliente.post("/sair", follow_redirects=False)
+    resposta = cliente.post(
+        "/entrar",
+        data={"username": "ana", "senha": SENHA},
+        headers={"origin": "https://testserver:8443"},
+        follow_redirects=False,
+    )
+    assert resposta.status_code == 303
+    outro = cliente.post("/entrar", data={"username": "ana", "senha": SENHA}, headers={"origin": "https://testserver.example:8443"})
+    assert outro.status_code == 403
+
+
 def test_sem_cors_pra_outros_sites(cliente):
     preflight = cliente.options(
         "/progresso/mangadex/x",

@@ -171,7 +171,9 @@ Decisões:
 - **CSRF** (outro site enviando formulários em nome de quem está logado):
   além do `SameSite`, todo POST que o navegador marca como vindo de outro site
   é recusado: `Sec-Fetch-Site: cross-site`, ou `Origin` (ou, nos navegadores
-  antigos, `Referer`) com outro endereço (`main.py:conferir_origem`).
+  antigos, `Referer`) com outro endereço (`main.py:conferir_origem`). A
+  comparação é pelo nome do site, sem a porta, porque proxies como o Nginx
+  Proxy Manager repassam o `Host` sem ela.
 - **Redirecionamento depois do login** só aceita caminhos deste site
   (`rotas/conta.py:destino_seguro`), pra não virar trampolim pra site falso.
 - **Trocar a senha** derruba as sessões dos outros aparelhos.
