@@ -73,12 +73,7 @@ def inicio(
     usuario: Usuario | None = Depends(usuario_atual),
     db: Session = Depends(obter_db),
 ):
-    lendo = []
-    if usuario is not None:
-        lendo = [
-            item for item in estante.historico(db, usuario, limite=12)
-            if pode_ver(item.obra.classificacao, usuario)
-        ]
+    lendo = estante.historico(db, usuario, classificacoes_gerais(usuario), limite=12) if usuario else []
 
     fonte = fontes.obter(MANGADEX)
     idiomas = tuple(config.idiomas)
@@ -93,8 +88,6 @@ def inicio(
     )
     vitrines.append(("Atualizados recentemente no MangaDex", None, recentes.obras))
     for secao in secoes_visiveis(usuario):
-        if secao.adulta:
-            continue
         filtro = Filtro(classificacoes_da_secao(secao, usuario), secao.tipos, idiomas=idiomas)
         obras = fonte.buscar(filtro, por_pagina=12).obras
         vitrines.append((f"{secao.nome} populares", f"/secao/{secao.slug}", obras))
@@ -153,9 +146,15 @@ def busca(
     usuario: Usuario | None = Depends(usuario_atual),
 ):
     """Busca nas duas fontes. Com ?fonte=local sem termo, lista a biblioteca inteira."""
+    return pagina_busca(request, q, pagina, fonte, por, config, fontes, usuario, madura=False)
+
+
+def pagina_busca(request, q, pagina, fonte, por, config, fontes, usuario, madura: bool):
+    """A busca do site normal e a da área madura (rotas/madura.py): cada uma só
+    acha a classificação da sua área."""
     por_pagina, nova = _por_pagina(request, por)
     termo = q.strip()
-    filtro = Filtro(classificacoes_permitidas(usuario), termo=termo, idiomas=tuple(config.idiomas))
+    filtro = Filtro(classificacoes_permitidas(usuario, madura), termo=termo, idiomas=tuple(config.idiomas))
     locais = resultado = None
     if fonte == LOCAL:
         locais = fontes.obter(LOCAL).buscar(replace(filtro, ordem=Ordem.NOVOS), pagina, por_pagina)
@@ -164,7 +163,7 @@ def busca(
             locais = fontes.obter(LOCAL).buscar(filtro, 1, por_pagina)
         resultado = fontes.obter(MANGADEX).buscar(filtro, pagina, por_pagina)
     resposta = render(
-        request, "busca.html", q=termo, fonte=fonte, resultado=resultado, locais=locais
+        request, "busca.html", q=termo, fonte=fonte, resultado=resultado, locais=locais, madura=madura
     )
     return _lembrar_por_pagina(resposta, config, por_pagina, nova)
 
@@ -178,10 +177,14 @@ def sugestoes(
 ):
     """Autocompletar da busca (static/js/sugestoes.js): obras que combinam com o
     que a pessoa já digitou. A biblioteca local vem primeiro."""
+    return sugerir(q, config, fontes, usuario, madura=False)
+
+
+def sugerir(q: str, config: Config, fontes: Registro, usuario: Usuario | None, madura: bool) -> dict:
     termo = q.strip()
     if len(termo) < MINIMO_SUGESTAO:
         return {"itens": []}
-    filtro = Filtro(classificacoes_permitidas(usuario), termo=termo, idiomas=tuple(config.idiomas))
+    filtro = Filtro(classificacoes_permitidas(usuario, madura), termo=termo, idiomas=tuple(config.idiomas))
     obras = list(fontes.obter(LOCAL).buscar(filtro, 1, SUGESTOES).obras)
     if len(obras) < SUGESTOES:
         # No MangaDex, a "relevância" põe os derivados na frente ("one pi" traz
@@ -200,12 +203,11 @@ def sugestoes(
         "itens": [
             {
                 "titulo": o.titulo,
-                "url": f"/obra/{o.fonte}/{o.id}",
+                "url": f"{'/madura' if madura else ''}/obra/{o.fonte}/{o.id}",
                 "capa": o.capa_url or "/static/sem-capa.svg",
                 "info": " · ".join(
                     filter(None, [o.tipo.rotulo, str(o.ano) if o.ano else "", "biblioteca" if o.fonte == LOCAL else ""])
                 ),
-                "adulta": o.classificacao.adulta,
                 "so_fora": o.so_fora,
             }
             for o in obras[:SUGESTOES]
@@ -226,9 +228,16 @@ def obra(
     usuario: Usuario | None = Depends(usuario_atual),
     db: Session = Depends(obter_db),
 ):
+    return pagina_da_obra(
+        request, fonte_id, obra_id, idioma, reportado, config, fontes, anilist, usuario, db, madura=False
+    )
+
+
+def pagina_da_obra(request, fonte_id, obra_id, idioma, reportado, config, fontes, anilist, usuario, db, madura: bool):
+    """Página da obra no site normal ou na área madura. Obra da outra área: 404."""
     fonte = fontes.obter(fonte_id)
     obra = fonte.obra(obra_id)
-    if not pode_ver(obra.classificacao, usuario):
+    if not pode_ver(obra.classificacao, usuario, madura):
         raise NaoEncontrado(obra_id)
 
     capitulos = fonte.capitulos(obra_id, config.idiomas)
@@ -279,4 +288,5 @@ def obra(
         em_dia=em_dia,
         cobertura=resumo,
         reportado=reportado,
+        madura=madura,
     )

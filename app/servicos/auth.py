@@ -167,11 +167,17 @@ def criar_sessao(db: Session, usuario: Usuario, dias: int) -> str:
     return token
 
 
-def usuario_da_sessao(db: Session, token: str | None) -> Usuario | None:
+def sessao_do_token(db: Session, token: str | None) -> Sessao | None:
+    """A sessão (login) do cookie, se ainda vale."""
     if not token or len(token) > 100:
         return None
     sessao = db.get(Sessao, _hash_token(token))
-    if sessao is None or sessao.expira_em < agora():
+    return sessao if sessao is not None and sessao.expira_em >= agora() else None
+
+
+def usuario_da_sessao(db: Session, token: str | None) -> Usuario | None:
+    sessao = sessao_do_token(db, token)
+    if sessao is None:
         return None
     usuario = db.get(Usuario, sessao.usuario_id)
     return usuario if usuario is not None and usuario.ativo else None

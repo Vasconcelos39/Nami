@@ -62,6 +62,8 @@ class Sessao(Base):
     )
     criada_em: Mapped[datetime] = mapped_column(default=agora)
     expira_em: Mapped[datetime]
+    # Área madura aberta neste aparelho até esta hora (cada página lá dentro empurra pra frente).
+    madura_ate: Mapped[datetime | None]
 
 
 class Obra(Base):

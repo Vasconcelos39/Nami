@@ -8,7 +8,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app import __version__
-from app.dominio import nome_do_site
+from app.dominio import Classificacao, nome_do_site
 from app.servicos import noticias, suporte
 from app.servicos.visibilidade import secoes_visiveis
 
@@ -71,6 +71,14 @@ templates.env.filters["site"] = nome_do_site  # "https://mangaplus.shueisha.co.j
 templates.env.filters["texto_simples"] = noticias.formatar  # posts de Novidades (escapa tudo)
 
 
+def _raiz_de(obra) -> str:
+    """Onde a obra mora: obra adulta só existe na área madura (/madura/obra/...)."""
+    return "/madura" if Classificacao(obra.classificacao).adulta else ""
+
+
+templates.env.globals["raiz_de"] = _raiz_de
+
+
 def _avisos(request: Request, usuario) -> tuple[suporte.Novidades, bool]:
     """Os avisos do menu: respostas novas do suporte (e, pros admins, tickets
     esperando) e se saiu post em Novidades que a pessoa ainda não viu."""
@@ -85,7 +93,10 @@ def render(request: Request, nome: str, status: int = 200, /, **contexto):
     # receber uma variável chamada "status" sem confundir com o código HTTP.
     usuario = getattr(request.state, "usuario", None)
     do_suporte, noticia_nova = _avisos(request, usuario)
+    madura = bool(contexto.pop("madura", False))  # página da área madura: tema preto e menu próprio
     contexto = {
+        "madura": madura,
+        "raiz": "/madura" if madura else "",
         "usuario": usuario,
         "secoes": secoes_visiveis(usuario),
         "cadastro_aberto": request.app.state.config.cadastro_aberto,

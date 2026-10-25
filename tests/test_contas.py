@@ -194,27 +194,28 @@ def test_18_exige_senha_e_data_de_nascimento(cliente):
     assert usuario.maioridade_confirmada_em is None and not usuario.mostrar_adulto
 
 
-def test_18_ligado_libera_a_secao_e_pode_ser_desligado(cliente, api):
+def test_verificar_a_idade_abre_a_area_madura_e_pode_desativar(cliente, api):
     cadastrar(cliente)
-    ligar_adulto(cliente)
+    resposta = cliente.post(
+        "/conta/maioridade", data={"acao": "ligar", "senha": SENHA, "nascimento": "1990-05-10"}, follow_redirects=False
+    )
+    assert resposta.headers["location"] == "/madura"  # acabou de digitar a senha: entra direto
     api.responder("GET", f"{API}/manga", json=lista(manga(classificacao="erotica")))
-
-    secao = cliente.get("/secao/adulto")
-    assert secao.status_code == 200
+    assert cliente.get("/madura").status_code == 200
     assert api.chamadas[-1].url.params.get_list("contentRating[]") == ["erotica", "pornographic"]
-    assert 'href="/secao/adulto"' in secao.text  # aparece no menu
-    assert "+18 ligado" in cliente.get("/conta").text
+    assert 'href="/madura/entrar"' in cliente.get("/conta").text  # o link discreto aparece
 
     desligar = cliente.post("/conta/maioridade", data={"acao": "desligar"}, follow_redirects=False)
-    assert desligar.status_code == 303  # desligar não pede senha
-    assert cliente.get("/secao/adulto").status_code == 404
+    assert desligar.status_code == 303  # desativar não pede senha
+    assert cliente.get("/madura", follow_redirects=False).status_code == 404
+    assert 'href="/madura/entrar"' not in cliente.get("/conta").text
     (usuario,) = consultar(cliente, select(Usuario))
     assert usuario.maioridade_confirmada_em is not None  # a confirmação fica registrada
 
-    # Pra ligar de novo, só a senha: a data já foi confirmada.
+    # Pra liberar de novo, só a senha: a data já foi confirmada.
     assert 'name="nascimento"' not in cliente.get("/conta/maioridade").text
     assert _verificar(cliente, senha=SENHA).status_code == 303
-    assert cliente.get("/secao/adulto").status_code == 200
+    assert cliente.get("/madura").status_code == 200
 
 
 def test_18_data_de_menor_bloqueia_a_conta(cliente):
@@ -223,8 +224,8 @@ def test_18_data_de_menor_bloqueia_a_conta(cliente):
     assert menor.status_code == 400 and "menos de 18 anos" in menor.text
     # Trocar a data não adianta: só um admin desbloqueia.
     de_novo = _verificar(cliente, senha=SENHA, nascimento="1980-01-01")
-    assert de_novo.status_code == 400 and "bloqueado" in de_novo.text
-    assert cliente.get("/secao/adulto").status_code == 404
+    assert de_novo.status_code == 400 and "bloqueada" in de_novo.text
+    assert cliente.get("/madura", follow_redirects=False).status_code == 404
     assert "fale com o suporte" in cliente.get("/conta/maioridade").text
     (usuario,) = consultar(cliente, select(Usuario))
     assert usuario.adulto_bloqueado

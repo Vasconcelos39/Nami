@@ -11,7 +11,7 @@
       <tbody>
         {% for obra, n in linhas %}
         <tr>
-          <td><a href="/obra/local/{{ obra.id_externo }}">{{ obra.titulo }}</a>{% if obra.autor %}<br><span class="suave">{{ obra.autor }}</span>{% endif %}</td>
+          <td><a href="{{ raiz_de(obra) }}/obra/local/{{ obra.id_externo }}">{{ obra.titulo }}</a>{% if obra.autor %}<br><span class="suave">{{ obra.autor }}</span>{% endif %}</td>
           <td>{{ obra.tipo }}</td>
           <td><span class="selo-texto selo-{{ obra.classificacao }}">{{ obra.classificacao }}</span></td>
           <td>{{ n }}</td>

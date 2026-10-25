@@ -12,7 +12,6 @@ def test_sugere_obras_enquanto_digita(cliente, api):
     assert item["titulo"] == "One Piece"
     assert item["url"] == f"/obra/mangadex/{OBRA}"
     assert item["info"] == "Mangá · 2020"
-    assert item["adulta"] is False
 
     [pedido] = api.chamadas_para("/manga")
     assert pedido.url.params["title"] == "one"
@@ -42,14 +41,16 @@ def test_titulo_vai_como_texto_no_json(cliente, api):
     assert item["titulo"] == "<img src=x onerror=alert(1)>"
 
 
-def test_quem_ligou_o_18_recebe_sugestoes_adultas(cliente, api):
+def test_sugestoes_adultas_so_dentro_da_area_madura(cliente, api):
     cadastrar(cliente)
     ligar_adulto(cliente)
     api.responder("GET", f"{API}/manga", json=lista(manga(classificacao="erotica")))
-    [item] = cliente.get("/busca/sugestoes", params={"q": "qualquer"}).json()["itens"]
-    assert item["adulta"] is True  # a capa vai desfocada, como nos cartões
-    [pedido] = api.chamadas_para("/manga")
-    assert set(pedido.url.params.get_list("contentRating[]")) == {"safe", "suggestive", "erotica", "pornographic"}
+    cliente.get("/busca/sugestoes", params={"q": "qualquer"})
+    assert api.chamadas[-1].url.params.get_list("contentRating[]") == ["safe", "suggestive"]
+
+    [item] = cliente.get("/madura/busca/sugestoes", params={"q": "qualquer"}).json()["itens"]
+    assert item["url"] == f"/madura/obra/mangadex/{OBRA}"
+    assert set(api.chamadas[-1].url.params.get_list("contentRating[]")) == {"erotica", "pornographic"}
 
 
 def test_quem_tem_o_texto_no_titulo_vem_primeiro(cliente, api):

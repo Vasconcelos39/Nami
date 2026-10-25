@@ -1,8 +1,7 @@
-{# revelar=true só na seção +18. Fora dela, capas adultas ficam desfocadas
-   (aparecem nítidas ao passar o mouse ou focar o cartão). #}
-{% macro cartao(obra, revelar=false) %}
-<a class="cartao" href="/obra/{{ obra.fonte }}/{{ obra.id }}">
-  <span class="cartao-capa{% if obra.classificacao.adulta and not revelar %} capa-adulta{% endif %}">
+{# raiz_de(obra): obra adulta só existe dentro da área madura (/madura/obra/...). #}
+{% macro cartao(obra) %}
+<a class="cartao" href="{{ raiz_de(obra) }}/obra/{{ obra.fonte }}/{{ obra.id }}">
+  <span class="cartao-capa">
     <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="" loading="lazy" decoding="async">
     {% if obra.classificacao != 'safe' %}<span class="selo selo-{{ obra.classificacao }}">{{ obra.classificacao.rotulo }}</span>{% endif %}
     {% if obra.so_fora %}<span class="selo selo-fora" title="Nenhum capítulo dá pra ler aqui: só nos sites oficiais">Só no site oficial</span>{% endif %}
@@ -15,8 +14,8 @@
 {# Cartão da vitrine "Continuar lendo": leva direto pra página onde a pessoa parou. #}
 {% macro cartao_continuar(item) %}
 {% set obra, cap, leitura = item.obra, item.capitulo, item.leitura %}
-<a class="cartao" href="{% if leitura.concluido %}/obra/{{ obra.fonte }}/{{ obra.id }}{% else %}/ler/{{ cap.fonte }}/{{ cap.id }}#p={{ leitura.pagina }}{% endif %}">
-  <span class="cartao-capa{% if obra.classificacao.adulta %} capa-adulta{% endif %}">
+<a class="cartao" href="{{ raiz_de(obra) }}{% if leitura.concluido %}/obra/{{ obra.fonte }}/{{ obra.id }}{% else %}/ler/{{ cap.fonte }}/{{ cap.id }}#p={{ leitura.pagina }}{% endif %}">
+  <span class="cartao-capa">
     <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="" loading="lazy" decoding="async">
     {% if not leitura.concluido and leitura.total %}<progress class="barra-leitura" value="{{ leitura.pagina }}" max="{{ leitura.total }}"></progress>{% endif %}
   </span>
@@ -25,9 +24,9 @@
 </a>
 {% endmacro %}
 
-{% macro grade(obras, linha=false, revelar=false) %}
+{% macro grade(obras, linha=false) %}
 <div class="grade{% if linha %} grade-linha{% endif %}">
-  {% for obra in obras %}{{ cartao(obra, revelar) }}{% endfor %}
+  {% for obra in obras %}{{ cartao(obra) }}{% endfor %}
 </div>
 {% endmacro %}
 

@@ -281,7 +281,7 @@ def test_lista_de_contas_nao_tem_acoes_so_o_link(admin):
 
     pagina = admin.get(f"/admin/usuarios/{ana}")
     assert pagina.status_code == 200
-    assert "Redefinir senha" in pagina.text and "Bloquear +18" in pagina.text
+    assert "Redefinir senha" in pagina.text and "Bloquear área madura" in pagina.text
     assert admin.get("/admin/usuarios/9999").status_code == 404
 
 
@@ -303,25 +303,25 @@ def test_admin_bloqueia_e_desbloqueia_o_18(admin, api):
     sair(admin)
     cadastrar(admin, "ana")
     ligar_adulto(admin)
-    assert admin.get("/secao/adulto").status_code == 200
+    assert admin.get("/madura").status_code == 200
     sair(admin)
     entrar(admin, "chefe", "senha-do-chefe-123")
     ana = _id(admin, "ana")
     admin.post(f"/admin/usuarios/{ana}/adulto", data={"acao": "bloquear"})
-    assert "+18 bloqueado" in admin.get("/admin/usuarios").text
+    assert "área madura bloqueada" in admin.get("/admin/usuarios").text
 
     sair(admin)
     entrar(admin, "ana")
-    assert admin.get("/secao/adulto").status_code == 404
-    assert "bloqueado nesta conta" in admin.get("/conta/maioridade").text
+    assert admin.get("/madura", follow_redirects=False).status_code == 404
+    assert "bloqueada nesta conta" in admin.get("/conta/maioridade").text
     sair(admin)
 
     entrar(admin, "chefe", "senha-do-chefe-123")
     admin.post(f"/admin/usuarios/{ana}/adulto", data={"acao": "desbloquear"})
     sair(admin)
     entrar(admin, "ana")
-    # Desbloquear não liga nada: a ana passa pela verificação desde o começo.
-    assert admin.get("/secao/adulto").status_code == 404
+    # Desbloquear não libera nada: a ana passa pela verificação desde o começo.
+    assert admin.get("/madura", follow_redirects=False).status_code == 404
     assert 'name="nascimento"' in admin.get("/conta/maioridade").text
 
 

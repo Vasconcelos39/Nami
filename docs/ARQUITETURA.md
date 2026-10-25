@@ -26,6 +26,7 @@ A Nami **não guarda scans**. O conteúdo vem de duas fontes legítimas:
 | 6 | Suporte (tickets em forma de chat), auditoria de segurança, clique que rola no leitor, comando `importar` | pronta |
 | 7 | Autocompletar na busca, aviso de obra que só dá pra ler fora, página por usuário no admin, verificação de idade, IP real atrás do NPM | pronta |
 | 8 | Área de Novidades (posts do admin sobre o que mudou, com rascunho e bolinha no menu) | pronta |
+| 9 | Área madura separada (senha pra entrar, tema preto, histórico e favoritos próprios); site normal sem nada adulto; Esc sai do capítulo | pronta |
 
 Deploy passo a passo: [DEPLOY.md](DEPLOY.md).
 
@@ -61,10 +62,11 @@ app/
     cobertura.py     compara os capítulos daqui com a obra original
     reportes.py      avisos de problema enviados pelos usuários
     suporte.py       tickets de suporte (quem vê, limites, status)
-    maioridade.py    verificação de idade pra ligar o +18
+    maioridade.py    verificação de idade pra liberar a área madura
+    area_madura.py   entrar com senha, prazo de 30 min e sair da área madura
     noticias.py      posts de Novidades e o texto simples (escapa tudo)
   rotas/             catalogo (início, seções, busca, sugestões, obra), leitor,
-                     midia (proxy), conta, estante, reportes, suporte, noticias, admin
+                     midia (proxy), conta, estante, reportes, suporte, noticias, madura, admin
   templates/         HTML (admin/ = painel, suporte/ = chat de suporte)
   static/            CSS; JS do site (nami.js), do autocompletar da busca, do leitor,
                      do painel, do chat de suporte e o service worker (sw.js); manifest e tela offline;
@@ -91,40 +93,61 @@ vira um proxy aberto que qualquer pessoa usa pra baixar coisas da internet.
 
 ## Classificação etária
 
-Regra única em `app/servicos/visibilidade.py`:
+Regra única em `app/servicos/visibilidade.py`. São dois "sites" separados:
 
-| Quem | Vê |
-|---|---|
-| Visitante | safe |
-| Logado | safe + suggestive |
-| Logado + maioridade confirmada + opt-in +18 | também erotica e pornographic |
+| Onde | Quem | Vê |
+|---|---|---|
+| Site normal | visitante | safe |
+| Site normal | logado | safe + suggestive |
+| Área madura (`/madura`) | idade confirmada + senha digitada neste aparelho | **só** erotica e pornographic |
 
-Um admin pode bloquear o +18 de qualquer conta; bloqueado, nada adulto aparece.
-
-- Conteúdo adulto só aparece na seção +18 e na busca, nunca em Mangás/Manhwas/HQs.
+- O site normal nunca tem nada adulto: nem nas seções, nem na busca, nem no
+  autocompletar, nem no histórico ou nos favoritos. Obra adulta aberta pelo
+  endereço normal (`/obra/...`, `/ler/...`) responde 404, mesmo com a área
+  madura aberta. E a área madura não mostra obra que não é adulta.
+- Cada área tem a sua busca, o seu histórico e os seus favoritos: a separação é
+  pela classificação da obra, então nada precisou mudar no banco.
 - A checagem acontece na listagem, na página da obra, no leitor **e em cada
-  imagem** (proxy de páginas e de capas), pras duas fontes (MangaDex e local).
-- Seção ou obra proibida responde 404, não 403, pra não revelar que existe.
-- Fora da seção +18 (busca, histórico, favoritos, "Continuar lendo"), capas
-  adultas ficam desfocadas até passar o mouse, mesmo pra quem ativou o +18.
+  imagem** (proxy de páginas e de capas): imagem adulta só com a área aberta.
+- Página proibida responde 404, não 403, pra não revelar que existe (inclusive
+  `/madura` pra quem não tem acesso).
 - Ser admin não libera conteúdo adulto: o admin segue as mesmas regras nas
   páginas do site (o painel lista todas as obras locais, pra poder gerenciar).
-- Histórico e favoritos escondem o que a pessoa não pode mais ver (ex.: desligou o +18).
+
+### Área madura (`/madura`)
+
+`app/servicos/area_madura.py` e `app/rotas/madura.py`. As páginas são as
+mesmas do site normal (início, busca, obra, leitor, histórico, favoritos),
+chamadas com `madura=True`, num tema preto com destaque vermelho
+(`<html data-area="madura">`) e com menu próprio.
+
+- **Entrar:** o link "Área madura" fica ao lado de "Verificação de idade", no
+  fim de "Sua conta", e só aparece pra quem confirmou a idade. Ele sempre pede
+  a senha da conta (senha errada conta no limite do login).
+- **Prazo:** a área abre só na sessão de login daquele aparelho
+  (`sessao.madura_ate`) e fecha sozinha depois de 30 minutos sem abrir nenhuma
+  página lá dentro (cada página e cada página virada no leitor empurram o prazo).
+  "Sair da área madura" fecha na hora; sair da conta também.
+- **Bloqueio:** um admin pode bloquear a área de qualquer conta, e a pessoa sai
+  na hora.
+- **Links:** `raiz_de(obra)` (global do Jinja) monta o endereço certo: obra
+  adulta sempre em `/madura/...`.
 
 ### Verificação de idade (`/conta/maioridade`)
 
-Nenhum site pequeno consegue provar a idade de alguém; a ideia é que ligar o
-+18 deixe de ser "marcar uma caixinha" (`app/servicos/maioridade.py`):
+Nenhum site pequeno consegue provar a idade de alguém; a ideia é que liberar a
+área madura deixe de ser "marcar uma caixinha" (`app/servicos/maioridade.py`):
 
 - a opção não fica à vista: é um link pequeno ("Verificação de idade") no fim
   de "Sua conta", que abre uma página própria;
-- pra ligar, a pessoa digita a **senha da conta** (quem pega um celular já
-  logado não liga sozinho) e, na primeira vez, a **data de nascimento**;
+- pra liberar, a pessoa digita a **senha da conta** (quem pega um celular já
+  logado não libera sozinho) e, na primeira vez, a **data de nascimento**; como
+  acabou de digitar a senha, já entra direto na área madura;
 - senha errada ali conta no mesmo limite do login (20 por conta a cada 15 min);
-- uma data de menos de 18 anos **bloqueia o +18 da conta**: tentar de novo com
+- uma data de menos de 18 anos **bloqueia a área madura da conta**: tentar de novo com
   outra data não adianta, só um admin desbloqueia (e aí a pessoa recomeça);
 - a data de nascimento não é guardada, só o dia da confirmação;
-- desligar não pede nada. Ligar de novo pede só a senha.
+- desativar não pede nada. Liberar de novo pede só a senha.
 
 A migração 0004 zerou as confirmações antigas (feitas pela caixinha): quem
 tinha o +18 ligado passa pela verificação nova.
@@ -261,8 +284,8 @@ que vale é o da fonte, não o que o navegador manda.
 - Biblioteca: enviar obra (um ou vários arquivos), editar dados e capa,
   adicionar/renomear/remover capítulos, remover obra (com confirmação).
 - Usuários: a lista só mostra as contas; clicar numa abre a página dela, com
-  um resumo (último login, aparelhos conectados, +18, favoritos, tickets,
-  reportes) e as ações: tornar/tirar admin, bloquear/desbloquear o +18,
+  um resumo (último login, aparelhos conectados, área madura, favoritos, tickets,
+  reportes) e as ações: tornar/tirar admin, bloquear/desbloquear a área madura,
   desconectar dos aparelhos, redefinir senha (gera uma temporária mostrada uma
   vez só) e, separado, desativar/reativar (desconecta na hora). As ações que
   não dá pra desfazer na hora pedem confirmação.
@@ -349,7 +372,7 @@ Botão "⚑ Reportar problema" na página da obra (só com login): capa errada,
 capítulos faltando, informações erradas, classificação errada ou outro, com
 um texto opcional (até 1000 caracteres). Mandar o mesmo aviso de novo, ainda
 aberto, só atualiza o texto, e cada conta manda no máximo 10 por dia. Obra
-escondida (ex.: +18 sem opt-in) responde 404 também aqui. Obras do MangaDex
+adulta só pode ser reportada com a área madura aberta; obra escondida responde 404 também aqui. Obras do MangaDex
 não ficam no banco, então o reporte guarda fonte + id + título.
 
 ## Celular e app instalável
@@ -411,7 +434,8 @@ Piece Academy antes do One Piece), então as sugestões vêm das mais populares,
 com as que têm o texto em algum título na frente. Setas escolhem, Enter abre,
 Esc fecha (padrão "combobox" de acessibilidade). Limite próprio de 30 pedidos
 por minuto por rede, porque cada pausa na digitação pode gastar uma consulta ao
-MangaDex. As mesmas regras do +18 valem nas sugestões.
+MangaDex. No site normal nunca aparece obra adulta; na área madura o
+autocompletar usa `/madura/busca/sugestoes` (o formulário diz o endereço em `data-sugestoes`).
 
 ## Obras por página
 

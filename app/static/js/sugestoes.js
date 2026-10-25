@@ -1,5 +1,7 @@
 // Autocompletar da busca: enquanto a pessoa digita, aparecem até 6 obras que
-// combinam com o texto (rota /busca/sugestoes). Setas escolhem, Enter abre a
+// combinam com o texto. Cada formulário diz de onde vêm as sugestões
+// (data-sugestoes): /busca/sugestoes no site normal, /madura/busca/sugestoes
+// na área madura. Setas escolhem, Enter abre a
 // obra escolhida, Esc fecha; Enter sem escolher nada faz a busca normal.
 // Segue o padrão "combobox" de acessibilidade (leitores de tela anunciam a lista).
 (function () {
@@ -12,6 +14,7 @@
 
   function prepararCampo(campo, indice) {
     const form = campo.form;
+    const endereco = form.dataset.sugestoes || "/busca/sugestoes";
     const lista = document.createElement("ul");
     lista.className = "sugestoes";
     lista.id = "sugestoes-" + indice;
@@ -80,7 +83,7 @@
       if (pedido) pedido.abort();
       pedido = new AbortController();
       try {
-        const resposta = await fetch("/busca/sugestoes?q=" + encodeURIComponent(termo), {
+        const resposta = await fetch(endereco + "?q=" + encodeURIComponent(termo), {
           headers: { Accept: "application/json" },
           signal: pedido.signal,
         });
@@ -97,7 +100,7 @@
       termoMostrado = termo;
       lista.replaceChildren();
       opcoes = itens.map((item, i) => opcao(i, item.url, conteudoDaObra(item)));
-      const todos = "/busca?" + new URLSearchParams({ q: termo });
+      const todos = form.getAttribute("action") + "?" + new URLSearchParams({ q: termo });
       const verTodos = opcao(itens.length, todos, document.createTextNode("Ver todos os resultados"));
       verTodos.classList.add("ver-todos");
       opcoes.push(verTodos);
@@ -122,7 +125,7 @@
     function conteudoDaObra(item) {
       const pedaco = document.createDocumentFragment();
       const capa = document.createElement("span");
-      capa.className = "sugestao-capa" + (item.adulta ? " capa-adulta" : "");
+      capa.className = "sugestao-capa";
       const img = document.createElement("img");
       img.src = item.capa;
       img.alt = "";

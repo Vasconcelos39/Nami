@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Área madura · Nami{% endblock %}
+{% block conteudo %}
+<div class="conta">
+  <div class="cabeca-bloco"><h1>Entrar na área madura</h1></div>
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+  <form class="cartao-bloco" method="post" action="/madura/entrar">
+    <p class="dica">
+      Aqui fica só o conteúdo adulto (erótico e pornográfico), separado do resto da Nami.
+      O histórico e os favoritos daqui também ficam só aqui dentro.
+    </p>
+    <input type="hidden" name="proximo" value="{{ proximo }}">
+    <div class="campo">
+      <label for="senha">Senha da conta</label>
+      <input id="senha" name="senha" type="password" autocomplete="current-password" maxlength="128" required autofocus>
+      <p class="dica">
+        A área fica aberta só neste aparelho e fecha sozinha depois de {{ tempo_sem_uso }} minutos sem uso,
+        ou quando você clicar em “Sair da área madura”.
+      </p>
+    </div>
+    <button type="submit" class="botao">Entrar</button>
+  </form>
+</div>
+{% endblock %}

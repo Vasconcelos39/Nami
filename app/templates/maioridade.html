@@ -8,27 +8,32 @@
 
   {% if usuario.adulto_bloqueado %}
   <section class="cartao-bloco">
-    <h2>Conteúdo +18 bloqueado</h2>
-    <p>O conteúdo +18 está bloqueado nesta conta. Se você acha que é engano, <a href="/suporte/novo">fale com o suporte</a>.</p>
+    <h2>Área madura bloqueada</h2>
+    <p>A área madura está bloqueada nesta conta. Se você acha que é engano, <a href="/suporte/novo">fale com o suporte</a>.</p>
   </section>
 
   {% elif usuario.mostrar_adulto and usuario.maioridade_confirmada_em %}
-  <form class="cartao-bloco" method="post" action="/conta/maioridade">
-    <h2>Conteúdo +18 ligado</h2>
+  <section class="cartao-bloco">
+    <h2>Área madura liberada</h2>
     <p class="dica">
-      Idade confirmada em {{ usuario.maioridade_confirmada_em | data }}. As obras eróticas e pornográficas
-      aparecem só na seção +18 e na busca, nunca misturadas em Mangás, Manhwas ou HQs.
+      Idade confirmada em {{ usuario.maioridade_confirmada_em | data }}. O conteúdo adulto fica só dentro da
+      área madura, que pede a senha da conta toda vez que você entra.
     </p>
+    <a class="botao" href="/madura/entrar">Entrar na área madura</a>
+  </section>
+  <form class="cartao-bloco" method="post" action="/conta/maioridade">
+    <h2>Desativar</h2>
+    <p class="dica">O link da área madura some de “Sua conta”. Pra liberar de novo, basta a senha.</p>
     <input type="hidden" name="acao" value="desligar">
-    <button type="submit" class="botao botao-secundario">Desligar o +18</button>
+    <button type="submit" class="botao botao-secundario">Desativar a área madura</button>
   </form>
 
   {% else %}
   <form class="cartao-bloco" method="post" action="/conta/maioridade">
-    <h2>Ligar o conteúdo +18</h2>
+    <h2>Liberar a área madura</h2>
     <p class="dica">
-      Obras eróticas e pornográficas ficam escondidas por padrão. Ligando, elas aparecem numa seção +18
-      separada e na busca, nunca misturadas em Mangás, Manhwas ou HQs.
+      Obras eróticas e pornográficas nunca aparecem no site normal: elas ficam numa área separada, com
+      busca, histórico e favoritos próprios. Pra liberar essa área na sua conta, confirme a sua idade.
     </p>
     <input type="hidden" name="acao" value="ligar">
     {% if not usuario.maioridade_confirmada_em %}
@@ -37,7 +42,7 @@
       <input id="nascimento" name="nascimento" type="date" min="1900-01-01" max="{{ hoje.isoformat() }}" required>
       <p class="dica">
         A data não fica guardada: a Nami anota só o dia em que a sua idade foi confirmada.
-        <strong>Se ela indicar menos de 18 anos, o +18 fica bloqueado nesta conta</strong> e só um admin desbloqueia.
+        <strong>Se ela indicar menos de 18 anos, a área madura fica bloqueada nesta conta</strong> e só um admin desbloqueia.
       </p>
     </div>
     {% endif %}
@@ -46,7 +51,7 @@
       <input id="senha" name="senha" type="password" autocomplete="current-password" maxlength="128" required>
       <p class="dica">Pra ter certeza de que é você quem está pedindo, e não alguém com o seu celular na mão.</p>
     </div>
-    <button type="submit" class="botao">Confirmar e ligar o +18</button>
+    <button type="submit" class="botao">Confirmar e entrar na área madura</button>
   </form>
   {% endif %}
 </div>

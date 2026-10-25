@@ -58,12 +58,12 @@ def test_favicon_na_raiz(cliente):
     assert len(resposta.content) > 0
 
 
-def test_capas_adultas_ficam_desfocadas_fora_da_secao_18(cliente, api):
+def test_busca_do_site_normal_nunca_acha_adulto(cliente, api):
     from tests.ajudantes import cadastrar, ligar_adulto
     from tests.fabrica import API, lista, manga
 
     cadastrar(cliente)
-    ligar_adulto(cliente)
-    api.responder("GET", f"{API}/manga", json=lista(manga(classificacao="erotica")))
-    assert "capa-adulta" in cliente.get("/busca", params={"q": "x"}).text
-    assert "capa-adulta" not in cliente.get("/secao/adulto").text
+    ligar_adulto(cliente)  # e já entrou na área madura
+    api.responder("GET", f"{API}/manga", json=lista(manga()))
+    cliente.get("/busca", params={"q": "x"})
+    assert api.chamadas[-1].url.params.get_list("contentRating[]") == ["safe", "suggestive"]

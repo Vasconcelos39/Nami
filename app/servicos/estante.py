@@ -5,6 +5,7 @@ primeira vez que alguém lê ou favorita: progresso e favorito precisam apontar
 pra uma linha do banco. O histórico sai da tabela de progresso.
 """
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -177,8 +178,13 @@ def leitura_do_capitulo(db: Session, usuario: Usuario, fonte_id: str, capitulo_i
 # ----------------------------------------------------------------- histórico
 
 
-def historico(db: Session, usuario: Usuario, limite: int = 60) -> list[ItemHistorico]:
-    """Obras lidas, da mais recente pra mais antiga, com o último capítulo aberto de cada uma."""
+def historico(
+    db: Session, usuario: Usuario, classificacoes: Collection[dominio.Classificacao], limite: int = 60
+) -> list[ItemHistorico]:
+    """Obras lidas, da mais recente pra mais antiga, com o último capítulo aberto de cada uma.
+
+    Só das `classificacoes` pedidas: o site normal e a área madura têm cada um o seu histórico.
+    """
     ultima_leitura = (
         select(Capitulo.obra_id, func.max(Progresso.atualizado_em).label("quando"))
         .join(Progresso, Progresso.capitulo_id == Capitulo.id)
@@ -194,7 +200,7 @@ def historico(db: Session, usuario: Usuario, limite: int = 60) -> list[ItemHisto
             ultima_leitura,
             (ultima_leitura.c.obra_id == Obra.id) & (ultima_leitura.c.quando == Progresso.atualizado_em),
         )
-        .where(Progresso.usuario_id == usuario.id)
+        .where(Progresso.usuario_id == usuario.id, _das(classificacoes))
         .order_by(Progresso.atualizado_em.desc())
         .limit(limite * 2)
     ).all()
@@ -208,6 +214,10 @@ def historico(db: Session, usuario: Usuario, limite: int = 60) -> list[ItemHisto
         leitura = Leitura(progresso.pagina, capitulo.total_paginas, progresso.concluido, progresso.atualizado_em)
         itens.append(ItemHistorico(_obra_do_banco(obra), _capitulo_do_banco(capitulo, obra), leitura))
     return itens[:limite]
+
+
+def _das(classificacoes: Collection[dominio.Classificacao]):
+    return Obra.classificacao.in_([c.value for c in classificacoes])
 
 
 def remover_do_historico(db: Session, usuario: Usuario, fonte_id: str, obra_id: str) -> None:
@@ -252,11 +262,12 @@ def eh_favorito(db: Session, usuario: Usuario, fonte_id: str, obra_id: str) -> b
     )
 
 
-def favoritos(db: Session, usuario: Usuario) -> list[dominio.Obra]:
+def favoritos(db: Session, usuario: Usuario, classificacoes: Collection[dominio.Classificacao]) -> list[dominio.Obra]:
+    """Como o histórico, cada área tem os seus favoritos (pelas `classificacoes`)."""
     obras = db.scalars(
         select(Obra)
         .join(Favorito, Favorito.obra_id == Obra.id)
-        .where(Favorito.usuario_id == usuario.id)
+        .where(Favorito.usuario_id == usuario.id, _das(classificacoes))
         .order_by(Favorito.criado_em.desc())
     )
     return [_obra_do_banco(obra) for obra in obras]

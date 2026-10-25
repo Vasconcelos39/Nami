@@ -10,14 +10,13 @@
     {% endfor %}
   </nav>
 </div>
-{% if secao.adulta %}<p class="dica">Conteúdo adulto (erótico e pornográfico). Esta seção aparece porque você ligou o +18 na <a href="/conta/maioridade">verificação de idade</a>; dá pra desligar lá a qualquer momento.</p>{% endif %}
 <nav class="abas abas-ordem" aria-label="Ordenar por">
   {% for o in ordens %}
   <a href="/secao/{{ secao.slug }}?fonte={{ fonte }}&ordem={{ o.value }}"{% if o == ordem %} aria-current="page"{% endif %}>{{ o.rotulo }}</a>
   {% endfor %}
 </nav>
 {% if resultado.obras %}
-{{ grade(resultado.obras, revelar=secao.adulta) }}
+{{ grade(resultado.obras) }}
 {% elif fonte == 'local' %}
 <p class="vazio">Nada desse tipo na biblioteca local ainda.{% if usuario and usuario.is_admin %} <a href="/admin/obras/nova">Adicionar obra</a>.{% endif %}</p>
 {% else %}

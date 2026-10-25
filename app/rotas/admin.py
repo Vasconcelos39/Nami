@@ -54,8 +54,8 @@ MENSAGENS = {
     "desativado": "Conta desativada. A pessoa foi desconectada.",
     "reativado": "Conta reativada.",
     "desconectado": "A conta foi desconectada de todos os aparelhos.",
-    "adulto-bloqueado": "+18 bloqueado nesta conta. A pessoa não consegue ligar de novo.",
-    "adulto-desbloqueado": "+18 desbloqueado. Pra ligar, a pessoa passa pela verificação de idade de novo.",
+    "adulto-bloqueado": "Área madura bloqueada nesta conta. A pessoa não consegue liberar de novo.",
+    "adulto-desbloqueado": "Área madura desbloqueada. Pra entrar, a pessoa passa pela verificação de idade de novo.",
     "noticia-rascunho": "Rascunho salvo. Só os admins veem até você publicar.",
     "noticia-publicada": "Publicada! Quem tem conta vê a bolinha em “Novidades” no menu.",
     "noticia-apagada": "Novidade apagada.",
@@ -546,7 +546,7 @@ def mudar_ativo(
 def mudar_adulto(
     usuario_id: int, acao: Texto, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
 ):
-    """Bloqueia o +18 de uma conta (ex.: alguém que mentiu a idade) ou desbloqueia."""
+    """Bloqueia a área madura de uma conta (ex.: alguém que mentiu a idade) ou desbloqueia."""
     alvo = _alvo(db, usuario_id)
     if acao == "bloquear":
         maioridade.bloquear(db, alvo)

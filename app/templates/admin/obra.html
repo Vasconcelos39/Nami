@@ -4,7 +4,7 @@
 <div class="admin">
   <div class="cabeca-bloco">
     <h1>{{ obra.titulo }}</h1>
-    <a class="botao botao-secundario" href="/obra/local/{{ obra.id_externo }}">Ver no site</a>
+    <a class="botao botao-secundario" href="{{ raiz_de(obra) }}/obra/local/{{ obra.id_externo }}">Ver no site</a>
   </div>
   {% set aba = 'obras' %}{% include "admin/_menu.html" %}
 

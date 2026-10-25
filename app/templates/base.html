@@ -1,6 +1,6 @@
 <!doctype html>
 {% from "_icones.html" import icone %}
-<html lang="pt-br" data-versao="{{ versao }}">
+<html lang="pt-br" data-versao="{{ versao }}"{% if madura %} data-area="madura"{% endif %}>
 <head>
   <meta charset="utf-8">
   {# viewport-fit=cover: no iPhone com notch, a página vai até as bordas e o CSS
@@ -13,7 +13,7 @@
   <link rel="icon" href="/static/marca/nami-onda.png?v={{ versao }}" type="image/png" sizes="96x96">
   <link rel="apple-touch-icon" href="/static/marca/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <meta name="theme-color" content="{% block cor_tema %}#0d182c{% endblock %}">
+  <meta name="theme-color" content="{% block cor_tema %}{{ '#000000' if madura else '#0d182c' }}{% endblock %}">
   {# Instalada na tela inicial, a Nami abre como app (sem a barra do navegador). #}
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -24,9 +24,33 @@
   <script src="/static/js/sugestoes.js?v={{ versao }}" defer></script>
 </head>
 <body class="{% block classe_body %}{% endblock %}">
+{% set caminho = request.url.path %}
 {% block topo %}
 <header class="topo">
   <div class="topo-conteudo">
+    {% if madura %}
+    {# Área madura: menu próprio, sem nada do site normal. #}
+    <a class="marca" href="/madura" aria-label="Área madura, início">
+      <img class="marca-onda" src="/static/marca/nami-onda.png" alt="" width="34" height="34">
+      <span class="marca-madura">Área madura</span>
+    </a>
+    {% if entrando %}
+    <nav class="conta-nav conta-nav-sempre" aria-label="Conta"><a href="/conta">← Sua conta</a></nav>
+    {% else %}
+    <nav class="secoes" aria-label="Área madura">
+      <a href="/madura"{% if caminho == "/madura" %} aria-current="page"{% endif %}>Início</a>
+      <a href="/madura/historico"{% if caminho == "/madura/historico" %} aria-current="page"{% endif %}>Histórico</a>
+      <a href="/madura/favoritos"{% if caminho == "/madura/favoritos" %} aria-current="page"{% endif %}>Favoritos</a>
+    </nav>
+    <form class="busca" action="/madura/busca" method="get" role="search" data-sugestoes="/madura/busca/sugestoes">
+      <input type="search" name="q" value="{{ q or '' }}" placeholder="Buscar na área madura…" aria-label="Buscar na área madura" maxlength="200">
+      <button type="submit">Buscar</button>
+    </form>
+    <nav class="conta-nav" aria-label="Área madura">
+      <form action="/madura/sair" method="post"><button type="submit" class="botao botao-pequeno botao-secundario">Sair da área madura</button></form>
+    </nav>
+    {% endif %}
+    {% else %}
     <a class="marca" href="/" aria-label="Nami, página inicial">
       <img class="marca-onda" src="/static/marca/nami-onda.png" alt="" width="34" height="34">
       <img class="marca-nome" src="/static/marca/nami-nome.png" alt="Nami" width="89" height="30">
@@ -36,7 +60,7 @@
       <a href="/secao/{{ s.slug }}"{% if secao_atual == s.slug %} aria-current="page"{% endif %}>{{ s.nome }}</a>
       {% endfor %}
     </nav>
-    <form class="busca" action="/busca" method="get" role="search">
+    <form class="busca" action="/busca" method="get" role="search" data-sugestoes="/busca/sugestoes">
       <input type="search" name="q" value="{{ q or '' }}" placeholder="Buscar obra…" aria-label="Buscar obra" maxlength="200">
       <button type="submit">Buscar</button>
     </form>
@@ -54,6 +78,7 @@
       {% if cadastro_aberto %}<a class="botao botao-pequeno" href="/cadastro">Criar conta</a>{% endif %}
       {% endif %}
     </nav>
+    {% endif %}
   </div>
 </header>
 {% endblock %}
@@ -69,7 +94,15 @@
   </p>
 </footer>
 {# Barra de navegação de app: só aparece em telas estreitas (celular). #}
-{% set caminho = request.url.path %}
+{% if madura and not entrando %}
+<nav class="barra-app" aria-label="Área madura">
+  <a href="/madura"{% if caminho == "/madura" %} aria-current="page"{% endif %}>{{ icone("inicio") }}<span>Início</span></a>
+  <a href="/madura/busca"{% if caminho == "/madura/busca" %} aria-current="page"{% endif %}>{{ icone("busca") }}<span>Buscar</span></a>
+  <a href="/madura/historico"{% if caminho == "/madura/historico" %} aria-current="page"{% endif %}>{{ icone("historico") }}<span>Histórico</span></a>
+  <a href="/madura/favoritos"{% if caminho == "/madura/favoritos" %} aria-current="page"{% endif %}>{{ icone("favoritos") }}<span>Favoritos</span></a>
+  <form action="/madura/sair" method="post"><button type="submit">{{ icone("sair") }}<span>Sair</span></button></form>
+</nav>
+{% else %}
 <nav class="barra-app" aria-label="Navegação principal">
   <a href="/"{% if caminho == "/" %} aria-current="page"{% endif %}>{{ icone("inicio") }}<span>Início</span></a>
   <a href="/busca"{% if caminho == "/busca" %} aria-current="page"{% endif %}>{{ icone("busca") }}<span>Buscar</span></a>
@@ -83,6 +116,7 @@
   <a href="/entrar?proximo={{ caminho | urlencode }}"{% if caminho in ("/entrar", "/cadastro") %} aria-current="page"{% endif %}>{{ icone("conta") }}<span>Entrar</span></a>
   {% endif %}
 </nav>
+{% endif %}
 {% endblock %}
 {% block scripts %}{% endblock %}
 </body>

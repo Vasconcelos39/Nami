@@ -5,7 +5,7 @@
   <div class="cabeca-bloco"><h1>Usuários</h1><span class="suave">{{ lista | length }} conta{{ "s" if lista | length != 1 }}</span></div>
   {% set aba = 'usuarios' %}{% include "admin/_menu.html" %}
 
-  <p class="dica">Clique numa conta pra ver os detalhes e as ações (admin, desativar, senha, +18).</p>
+  <p class="dica">Clique numa conta pra ver os detalhes e as ações (admin, desativar, senha, área madura).</p>
   <div class="tabela-rolagem">
     <table class="tabela tabela-clicavel">
       <thead><tr><th>Conta</th><th>Criada em</th><th>Situação</th></tr></thead>
@@ -18,7 +18,7 @@
             {% if u.id == usuario.id %}<span class="cap-marca">você</span>{% endif %}
           </td>
           <td>{{ u.criado_em | data }}</td>
-          <td>{% if u.ativo %}Ativa{% else %}Desativada{% endif %}{% if u.adulto_bloqueado %} · +18 bloqueado{% elif u.mostrar_adulto and u.maioridade_confirmada_em %} · +18 ligado{% endif %}</td>
+          <td>{% if u.ativo %}Ativa{% else %}Desativada{% endif %}{% if u.adulto_bloqueado %} · área madura bloqueada{% elif u.mostrar_adulto and u.maioridade_confirmada_em %} · área madura liberada{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

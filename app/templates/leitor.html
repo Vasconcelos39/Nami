@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}{{ capitulo.rotulo }} · {{ obra.titulo }} · Nami{% endblock %}
 {% block classe_body %}pagina-leitor{% endblock %}
-{% block cor_tema %}#0f1b31{% endblock %}
+{% block cor_tema %}{{ '#000000' if madura else '#0f1b31' }}{% endblock %}
 
 {% block topo %}
 <header class="leitor-topo">
@@ -70,6 +70,7 @@
     <dt>F</dt><dd>tela cheia</dd>
     <dt>H</dt><dd>esconder barras</dd>
     <dt>C</dt><dd>estas configurações</dd>
+    <dt>Esc</dt><dd>fecha estas configurações; com elas fechadas, sai do capítulo</dd>
   </dl>
 </div>
 {% endblock %}
@@ -89,7 +90,7 @@
   <div class="fim-capitulo" id="fim-capitulo" hidden>
     <p>Fim do {{ capitulo.rotulo | lower }}</p>
     {% if proximo %}
-    <a class="botao" href="/ler/{{ proximo.fonte }}/{{ proximo.id }}">Próximo: {{ proximo.rotulo }}</a>
+    <a class="botao" href="{{ raiz }}/ler/{{ proximo.fonte }}/{{ proximo.id }}">Próximo: {{ proximo.rotulo }}</a>
     {% else %}
     <p class="suave">Este é o último capítulo disponível.</p>
     {% endif %}
@@ -102,14 +103,14 @@
 {% block rodape %}
 <footer class="leitor-base">
   {% if anterior %}
-  <a class="leitor-cap" href="/ler/{{ anterior.fonte }}/{{ anterior.id }}" title="Capítulo anterior ([)">‹ {{ anterior.rotulo }}</a>
+  <a class="leitor-cap" href="{{ raiz }}/ler/{{ anterior.fonte }}/{{ anterior.id }}" title="Capítulo anterior ([)">‹ {{ anterior.rotulo }}</a>
   {% else %}<span class="leitor-cap" aria-disabled="true">‹ Início</span>{% endif %}
   <div class="leitor-progresso">
     <input type="range" id="barra-pagina" min="1" max="{{ total }}" value="1" aria-label="Página">
     <span id="indicador-pagina">1 / {{ total }}</span>
   </div>
   {% if proximo %}
-  <a class="leitor-cap" href="/ler/{{ proximo.fonte }}/{{ proximo.id }}" title="Próximo capítulo (])">{{ proximo.rotulo }} ›</a>
+  <a class="leitor-cap" href="{{ raiz }}/ler/{{ proximo.fonte }}/{{ proximo.id }}" title="Próximo capítulo (])">{{ proximo.rotulo }} ›</a>
   {% else %}<span class="leitor-cap" aria-disabled="true">Fim ›</span>{% endif %}
 </footer>
 {% endblock %}

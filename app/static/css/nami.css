@@ -26,6 +26,21 @@
   -webkit-text-size-adjust: 100%;
 }
 
+/* Área madura (/madura): mais escura, quase preta, com vermelho no lugar do azul.
+   Assim dá pra ver de longe em qual das duas áreas você está. */
+:root[data-area="madura"] {
+  --fundo: #000;
+  --superficie: #0d0d0f;
+  --superficie-2: #18181b;
+  --borda: #2a2a2f;
+  --texto: #f1ece6;
+  --texto-suave: #a29fa8;
+  --destaque: #e0566a;
+  --destaque-texto: #1a0408;
+}
+.marca-madura { font-weight: 800; font-size: 1.05rem; letter-spacing: .01em; color: var(--destaque); white-space: nowrap; }
+.conta-nav-sempre { margin-left: auto; }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--fundo); color: var(--texto); line-height: 1.5; }
@@ -135,6 +150,7 @@ h2 { font-size: 1.2rem; margin: 0; }
   /* No topo ficam só a marca e as seções; busca e conta vão pra barra de baixo. */
   .topo-conteudo { flex-wrap: nowrap; gap: 12px; padding-top: calc(8px + var(--seguro-topo)); padding-bottom: 8px; }
   .topo .busca, .topo .conta-nav { display: none; }
+  .topo .conta-nav.conta-nav-sempre { display: flex; }
   .secoes { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .secoes::-webkit-scrollbar { display: none; }
   .conteudo { padding-top: 16px; }
@@ -152,6 +168,13 @@ h2 { font-size: 1.2rem; margin: 0; }
     flex: 1; min-width: 0; height: var(--altura-barra-app);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     color: var(--texto-suave); font-size: .72rem; font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .barra-app form { flex: 1; min-width: 0; display: flex; margin: 0; }
+  .barra-app button {
+    flex: 1; min-width: 0; height: var(--altura-barra-app); padding: 0; border: 0; background: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--texto-suave); font: inherit; font-size: .72rem; font-weight: 500; cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
   .barra-app a:hover { text-decoration: none; }
@@ -178,9 +201,6 @@ h2 { font-size: 1.2rem; margin: 0; }
 .cartao-capa img { width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
 .cartao:hover .cartao-capa img { transform: scale(1.04); }
 /* capa +18 fora da seção +18: desfocada até passar o mouse/focar */
-.capa-adulta img { filter: blur(16px) saturate(.6); transform: scale(1.15); transition: filter .2s, transform .2s; }
-.cartao:hover .capa-adulta img, .cartao:focus-visible .capa-adulta img,
-.lista-historico li:hover .capa-adulta img { filter: none; transform: scale(1.04); }
 .historico-capa { display: block; overflow: hidden; border-radius: 6px; }
 .abas-ordem { margin: -6px 0 16px; }
 .cartao-titulo {
@@ -531,6 +551,7 @@ code.senha { font-size: 1.05rem; padding: 3px 8px; user-select: all; }
   background: var(--fundo);
   color: var(--texto);
 }
+[data-area="madura"] .pagina-leitor { --fundo: #000; --superficie: #0d0d0f; --superficie-2: #18181b; --borda: #2a2a2f; }
 .pagina-leitor.ui-oculta { --altura-topo: var(--seguro-topo); --altura-base: var(--seguro-base); }
 .pagina-leitor .conteudo { max-width: none; padding: var(--altura-topo) 0 var(--altura-base); }
 /* Na rolagem, esconder as barras não muda o espaço reservado (senão a página daria um pulo). */

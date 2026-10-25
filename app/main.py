@@ -20,12 +20,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.catalogos.anilist import AniList
 from app.config import Config, get_config
 from app.db import aplicar_migracoes, criar_engine
-from app.dependencias import obter_db
+from app.dependencias import AreaMaduraFechada, obter_db
 from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.mangadex import MangaDex
 from app.fontes.registro import criar_registro
 from app.renderizar import PASTA_APP, render
-from app.rotas import admin, catalogo, conta, estante, leitor, midia, noticias, reportes, suporte
+from app.rotas import admin, catalogo, conta, estante, leitor, madura, midia, noticias, reportes, suporte
 from app.servicos.auth import LimiteTentativas, LoginNecessario
 from app.servicos.imagens import CacheCapas
 from app.servicos.protecao import (
@@ -84,7 +84,7 @@ def criar_app(
     app.state.limite_cadastro = LimiteTentativas(maximo=5, janela=60 * 60)
 
     app.mount("/static", StaticFiles(directory=PASTA_APP / "static"), name="static")
-    for modulo in (catalogo, leitor, midia, conta, estante, reportes, suporte, noticias, admin):
+    for modulo in (catalogo, leitor, midia, conta, estante, reportes, suporte, noticias, madura, admin):
         app.include_router(modulo.router)
 
     limite_paginas = LimiteDeTaxa(config.limite_por_minuto) if config.limite_por_minuto else None
@@ -186,6 +186,11 @@ def criar_app(
         if request.method != "GET":
             voltar = "/"
         return RedirectResponse(f"/entrar?proximo={quote(voltar)}", status_code=303)
+
+    @app.exception_handler(AreaMaduraFechada)
+    async def area_madura_fechada(request: Request, _erro: AreaMaduraFechada):
+        voltar = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(f"/madura/entrar?proximo={quote(voltar)}", status_code=303)
 
     @app.exception_handler(NaoEncontrado)
     async def nao_encontrado(request: Request, _erro: NaoEncontrado):

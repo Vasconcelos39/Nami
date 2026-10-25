@@ -16,8 +16,8 @@ from app.servicos.visibilidade import pode_ver
 router = APIRouter()
 
 
-def _url(capitulo: Capitulo | None) -> str | None:
-    return f"/ler/{capitulo.fonte}/{capitulo.id}" if capitulo else None
+def _url(capitulo: Capitulo | None, raiz: str) -> str | None:
+    return f"{raiz}/ler/{capitulo.fonte}/{capitulo.id}" if capitulo else None
 
 
 def formato(obra: Obra) -> str:
@@ -40,16 +40,22 @@ def ler(
     usuario: Usuario | None = Depends(usuario_atual),
     db: Session = Depends(obter_db),
 ):
+    return pagina_do_leitor(request, fonte_id, capitulo_id, config, fontes, usuario, db, madura=False)
+
+
+def pagina_do_leitor(request, fonte_id, capitulo_id, config, fontes, usuario, db, madura: bool):
+    """O leitor do site normal ou o da área madura (rotas/madura.py)."""
     fonte = fontes.obter(fonte_id)
     obra, capitulo = fonte.capitulo(capitulo_id)
-    if not pode_ver(obra.classificacao, usuario):
+    if not pode_ver(obra.classificacao, usuario, madura):
         raise NaoEncontrado(capitulo_id)
 
-    url_obra = f"/obra/{fonte.id}/{obra.id}"
+    raiz = "/madura" if madura else ""
+    url_obra = f"{raiz}/obra/{fonte.id}/{obra.id}"
     paginas = fonte.paginas(capitulo_id) if capitulo.legivel else []
     if not paginas:
         return render(
-            request, "capitulo_indisponivel.html", obra=obra, capitulo=capitulo, url_obra=url_obra
+            request, "capitulo_indisponivel.html", obra=obra, capitulo=capitulo, url_obra=url_obra, madura=madura
         )
 
     lista, anterior, proximo = navegacao(fonte.capitulos(obra.id, config.idiomas), capitulo)
@@ -66,8 +72,8 @@ def ler(
     dados = {
         "capitulo": capitulo.id,
         "paginas": [p.url for p in paginas],
-        "anterior": _url(anterior),
-        "proximo": _url(proximo),
+        "anterior": _url(anterior, raiz),
+        "proximo": _url(proximo, raiz),
         "obra": url_obra,
         "formato": formato(obra),
         "qualidadePadrao": config.qualidade_padrao,
@@ -86,4 +92,5 @@ def ler(
         total=len(paginas),
         url_obra=url_obra,
         dados=dados,
+        madura=madura,
     )

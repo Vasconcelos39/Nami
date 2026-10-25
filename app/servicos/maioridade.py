@@ -1,4 +1,4 @@
-"""Verificação de idade pra ligar o conteúdo +18.
+"""Verificação de idade pra liberar a área madura (servicos/area_madura.py).
 
 Nenhum site pequeno consegue provar a idade de alguém, mas isto deixa de ser
 "marcar uma caixinha":
@@ -6,7 +6,7 @@ Nenhum site pequeno consegue provar a idade de alguém, mas isto deixa de ser
   no fim de "Sua conta";
 - pra ligar, a pessoa digita a senha da conta, então quem pega um celular já
   logado não liga sozinho; na primeira vez, informa também a data de nascimento;
-- uma data de menos de 18 anos bloqueia o +18 da conta. Tentar de novo com
+- uma data de menos de 18 anos bloqueia a área madura da conta. Tentar de novo com
   outra data não adianta: só um admin desbloqueia;
 - a data de nascimento não é guardada, só o dia em que a maioridade foi confirmada.
 """
@@ -20,7 +20,7 @@ from app.servicos.auth import senha_confere
 
 IDADE_MINIMA = 18
 
-BLOQUEADO = "O conteúdo +18 está bloqueado nesta conta. Se acha que é engano, fale com o suporte."
+BLOQUEADO = "A área madura está bloqueada nesta conta. Se acha que é engano, fale com o suporte."
 
 
 class ErroDeVerificacao(Exception):
@@ -49,7 +49,7 @@ def _data(texto: str | None, hoje: date) -> date:
 
 
 def ligar(db: Session, usuario: Usuario, senha: str | None, nascimento: str | None, hoje: date | None = None) -> None:
-    """Liga o +18, ou levanta ErroDeVerificacao dizendo o que faltou."""
+    """Libera a área madura, ou levanta ErroDeVerificacao dizendo o que faltou."""
     hoje = hoje or agora().date()
     if usuario.adulto_bloqueado:
         raise ErroDeVerificacao(BLOQUEADO)
@@ -60,7 +60,7 @@ def ligar(db: Session, usuario: Usuario, senha: str | None, nascimento: str | No
         if idade(_data(nascimento, hoje), hoje) < IDADE_MINIMA:
             bloquear(db, usuario)
             raise ErroDeVerificacao(
-                "Pela data informada, você tem menos de 18 anos. O conteúdo +18 ficou bloqueado "
+                "Pela data informada, você tem menos de 18 anos. A área madura ficou bloqueada "
                 "nesta conta; se foi engano na data, fale com o suporte."
             )
         usuario.maioridade_confirmada_em = agora()
@@ -75,7 +75,7 @@ def desligar(db: Session, usuario: Usuario) -> None:
 
 
 def bloquear(db: Session, usuario: Usuario) -> None:
-    """Desliga o +18 e impede de ligar de novo até um admin desbloquear."""
+    """Fecha a área madura e impede de liberar de novo até um admin desbloquear."""
     usuario.adulto_bloqueado = True
     usuario.mostrar_adulto = False
     usuario.maioridade_confirmada_em = None
@@ -83,6 +83,6 @@ def bloquear(db: Session, usuario: Usuario) -> None:
 
 
 def desbloquear(db: Session, usuario: Usuario) -> None:
-    """A pessoa volta a poder ligar o +18, passando pela verificação desde o começo."""
+    """A pessoa volta a poder liberar a área madura, passando pela verificação desde o começo."""
     usuario.adulto_bloqueado = False
     db.commit()

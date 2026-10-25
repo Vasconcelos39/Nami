@@ -3,8 +3,8 @@
 {% block titulo %}{% if q %}{{ q }} · {% endif %}Busca · Nami{% endblock %}
 {% block conteudo %}
 {# No celular o campo de busca do topo some; este aparece no lugar dele. #}
-<form class="busca busca-pagina" action="/busca" method="get" role="search">
-  <input type="search" name="q" value="{{ q or '' }}" placeholder="Buscar obra…" aria-label="Buscar obra" maxlength="200"{% if not q and fonte != 'local' %} autofocus{% endif %}>
+<form class="busca busca-pagina" action="{{ raiz }}/busca" method="get" role="search" data-sugestoes="{{ raiz }}/busca/sugestoes">
+  <input type="search" name="q" value="{{ q or '' }}" placeholder="{{ 'Buscar na área madura…' if madura else 'Buscar obra…' }}" aria-label="Buscar obra" maxlength="200"{% if not q and fonte != 'local' %} autofocus{% endif %}>
   <button type="submit">Buscar</button>
 </form>
 {% if fonte == 'local' %}
@@ -13,14 +13,18 @@
   <span class="suave">{{ locais.total }} obra{{ "s" if locais.total != 1 }}</span>
 </div>
 {% if locais.obras %}{{ grade(locais.obras) }}{% else %}<p class="vazio">A biblioteca local está vazia.</p>{% endif %}
-{{ paginacao(locais, "/busca?fonte=local&") }}
+{{ paginacao(locais, raiz ~ "/busca?fonte=local&") }}
 {% elif resultado is none %}
-<div class="cabeca-bloco"><h1>Buscar</h1></div>
+<div class="cabeca-bloco"><h1>Buscar{% if madura %} na área madura{% endif %}</h1></div>
+{% if madura %}
+<p class="vazio">Digite o nome de uma obra. Aqui a busca acha só obras adultas; no site normal, só as outras.</p>
+{% else %}
 <p class="vazio">Digite o nome de uma obra no campo de busca, ou navegue pelas seções:</p>
 <nav class="abas atalhos-secoes" aria-label="Seções">
   {% for s in secoes %}<a href="/secao/{{ s.slug }}">{{ s.nome }}</a>{% endfor %}
   <a href="/busca?fonte=local">Biblioteca local</a>
 </nav>
+{% endif %}
 {% else %}
 <div class="cabeca-bloco"><h1>Resultados para “{{ q }}”</h1></div>
 {% if locais and locais.obras %}
@@ -36,6 +40,6 @@
   </div>
   {% if resultado.obras %}{{ grade(resultado.obras) }}{% else %}<p class="vazio">Nada encontrado. Tente outro nome, ou o título em inglês ou japonês.</p>{% endif %}
 </section>
-{{ paginacao(resultado, "/busca?q=" ~ (q | urlencode) ~ "&") }}
+{{ paginacao(resultado, raiz ~ "/busca?q=" ~ (q | urlencode) ~ "&") }}
 {% endif %}
 {% endblock %}

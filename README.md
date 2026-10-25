@@ -19,9 +19,10 @@ A Nami não guarda scans: o catálogo e as páginas vêm da API oficial do
 - **Contas:** continuar de onde parou, histórico, favoritos, idioma preferido.
 - **Novidades:** o admin escreve posts sobre o que mudou no site, e quem tem
   conta vê uma bolinha no menu até ler.
-- **Classificação etária:** visitante vê só conteúdo livre, quem tem conta vê
-  também o sugestivo, e o +18 só aparece pra quem passa pela verificação de
-  idade (data de nascimento + senha da conta).
+- **Classificação etária:** o site normal nunca mostra conteúdo adulto
+  (visitante vê só o livre, quem tem conta vê também o sugestivo). O adulto fica
+  numa **área madura** separada, com tema preto, busca, histórico e favoritos
+  próprios: entra quem confirmou a idade, digitando a senha da conta.
 - **Leitura oficial:** com dados do [AniList](https://anilist.co), a página da
   obra avisa quando faltam capítulos (licenciamento, tradução parada) e mostra
   onde ler ou comprar oficialmente.
@@ -49,6 +50,7 @@ a cada atualização).
 - [x] **Fase 6:** suporte em forma de chat, auditoria de segurança, clique que rola no leitor e importação pelo terminal
 - [x] **Fase 7:** autocompletar na busca, aviso de obra que só dá pra ler no site oficial, página por usuário no admin, verificação de idade e IP real atrás do proxy
 - [x] **Fase 8:** área de Novidades, pra contar o que mudou no site
+- [x] **Fase 9:** área madura separada (o site normal fica sem nada adulto) e Esc pra sair do capítulo
 
 ## Rodar no PC (Windows)
 
@@ -103,6 +105,7 @@ explicada no arquivo.
 | F | tela cheia |
 | H | esconder as barras |
 | C | configurações (modo, direção, tamanho, qualidade) |
+| Esc | fecha as configurações; com elas fechadas, sai do capítulo |
 
 No celular: deslize o dedo ou toque nas laterais pra virar a página, e toque
 no meio pra esconder as barras. Na rolagem contínua, as barras somem sozinhas

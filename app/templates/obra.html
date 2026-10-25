@@ -26,12 +26,13 @@
     <div class="acoes">
       {% if continuar %}
       {% set cap, pag = continuar %}
-      <a class="botao" href="/ler/{{ cap.fonte }}/{{ cap.id }}{% if pag > 1 %}#p={{ pag }}{% endif %}">Continuar · {{ cap.rotulo }}{% if pag > 1 %}, pág. {{ pag }}{% endif %}</a>
+      <a class="botao" href="{{ raiz }}/ler/{{ cap.fonte }}/{{ cap.id }}{% if pag > 1 %}#p={{ pag }}{% endif %}">Continuar · {{ cap.rotulo }}{% if pag > 1 %}, pág. {{ pag }}{% endif %}</a>
       {% elif primeiro %}
-      <a class="botao" href="/ler/{{ primeiro.fonte }}/{{ primeiro.id }}">Começar a ler{% if primeiro.idioma != idioma %} · {{ primeiro.idioma | idioma | lower }}{% endif %}</a>
+      <a class="botao" href="{{ raiz }}/ler/{{ primeiro.fonte }}/{{ primeiro.id }}">Começar a ler{% if primeiro.idioma != idioma %} · {{ primeiro.idioma | idioma | lower }}{% endif %}</a>
       {% endif %}
       {% if usuario %}
       <form method="post" action="/favoritos/{{ obra.fonte }}/{{ obra.id }}{% if favorito %}/remover{% endif %}">
+        <input type="hidden" name="voltar" value="{{ raiz }}/obra/{{ obra.fonte }}/{{ obra.id }}">
         <button type="submit" class="botao botao-secundario"{% if favorito %} title="Tirar dos favoritos"{% endif %}>{% if favorito %}★ Nos favoritos{% else %}☆ Favoritar{% endif %}</button>
       </form>
       {% else %}
@@ -120,7 +121,7 @@
     {% set leitura = leituras.get(c.id) %}
     <li{% if leitura and leitura.concluido %} class="lido"{% endif %}>
       {% if c.legivel %}
-      <a href="/ler/{{ c.fonte }}/{{ c.id }}{% if leitura and not leitura.concluido %}#p={{ leitura.pagina }}{% endif %}">
+      <a href="{{ raiz }}/ler/{{ c.fonte }}/{{ c.id }}{% if leitura and not leitura.concluido %}#p={{ leitura.pagina }}{% endif %}">
       {% elif c.link_externo %}
       <a href="{{ c.link_externo }}" target="_blank" rel="noopener">
       {% else %}

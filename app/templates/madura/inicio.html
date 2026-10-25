@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import grade, cartao_continuar, paginacao %}
+{% block titulo %}Área madura · Nami{% endblock %}
+{% block conteudo %}
+{% if lendo %}
+<section class="vitrine">
+  <div class="cabeca-bloco">
+    <h2>Continuar lendo</h2>
+    <a href="/madura/historico">Histórico →</a>
+  </div>
+  <div class="grade grade-linha">
+    {% for item in lendo %}{{ cartao_continuar(item) }}{% endfor %}
+  </div>
+</section>
+{% endif %}
+<div class="cabeca-bloco">
+  <h1>Área madura</h1>
+  <nav class="abas" aria-label="Fonte">
+    {% for valor, nome in abas_fonte %}
+    <a href="/madura?fonte={{ valor }}&ordem={{ ordem.value }}"{% if valor == fonte %} aria-current="page"{% endif %}>{{ nome }}</a>
+    {% endfor %}
+  </nav>
+</div>
+<p class="dica">
+  Só conteúdo adulto. O histórico e os favoritos daqui ficam separados dos do site normal.
+  A área fecha sozinha depois de {{ tempo_sem_uso }} minutos sem uso.
+</p>
+<nav class="abas abas-ordem" aria-label="Ordenar por">
+  {% for o in ordens %}
+  <a href="/madura?fonte={{ fonte }}&ordem={{ o.value }}"{% if o == ordem %} aria-current="page"{% endif %}>{{ o.rotulo }}</a>
+  {% endfor %}
+</nav>
+{% if resultado.obras %}
+{{ grade(resultado.obras) }}
+{% elif fonte == 'local' %}
+<p class="vazio">Nenhuma obra adulta na biblioteca local ainda.{% if usuario.is_admin %} <a href="/admin/obras/nova">Adicionar obra</a>.{% endif %}</p>
+{% else %}
+<p class="vazio">Nenhuma obra encontrada.</p>
+{% endif %}
+{{ paginacao(resultado, "/madura?fonte=" ~ fonte ~ "&ordem=" ~ ordem.value ~ "&") }}
+{% endblock %}

@@ -6,6 +6,6 @@
 {% if obras %}
 {{ grade(obras) }}
 {% else %}
-<p class="vazio">Você ainda não favoritou nada. Use o botão ☆ Favoritar na página de uma obra.</p>
+<p class="vazio">Você ainda não favoritou nada{% if madura %} na área madura{% endif %}. Use o botão ☆ Favoritar na página de uma obra.</p>
 {% endif %}
 {% endblock %}

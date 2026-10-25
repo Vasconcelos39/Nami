@@ -421,7 +421,11 @@
       case "f": case "F": telaCheia(); break;
       case "h": case "H": alternarBarras(); break;
       case "c": case "C": alternarPainel(); break;
-      case "Escape": alternarPainel(false); break;
+      case "Escape":
+        // Com as configurações abertas, Esc só fecha elas; senão, sai do capítulo.
+        if (!painel.hidden) alternarPainel(false);
+        else window.location.href = dados.obra;
+        break;
       default: return;
     }
     ev.preventDefault();

@@ -61,9 +61,12 @@
     <button type="submit" class="botao botao-secundario">Sair de todos os outros aparelhos</button>
   </form>
 
-  {# Discreto de propósito: o +18 não fica à vista de quem só passa pela página. #}
+  {# Discreto de propósito: a área madura não fica à vista de quem só passa pela página. #}
   <p class="rodape-conta">
-    <a href="/conta/maioridade">Verificação de idade</a>{% if usuario.mostrar_adulto and usuario.maioridade_confirmada_em and not usuario.adulto_bloqueado %} · +18 ligado{% endif %}
+    <a href="/conta/maioridade">Verificação de idade</a>
+    {% if usuario.mostrar_adulto and usuario.maioridade_confirmada_em and not usuario.adulto_bloqueado %}
+    <span aria-hidden="true">·</span> <a href="/madura/entrar">Área madura</a>
+    {% endif %}
   </p>
 </div>
 {% endblock %}

@@ -12,7 +12,7 @@ from app.dependencias import exigir_login, obter_config, obter_db, usuario_atual
 from app.fontes.base import NaoEncontrado
 from app.models import Usuario, agora
 from app.renderizar import NOMES_IDIOMA, render
-from app.servicos import maioridade
+from app.servicos import area_madura, maioridade
 from app.servicos.auth import (
     COOKIE_SESSAO,
     ErroDeConta,
@@ -34,8 +34,7 @@ MENSAGENS_OK = {
     "preferencias": "Preferências salvas.",
     "senha": "Senha trocada. Os outros aparelhos foram desconectados.",
     "sessoes": "Pronto: a sua conta só continua conectada neste aparelho.",
-    "adulto-ligado": "Conteúdo +18 ligado. A seção +18 aparece no menu.",
-    "adulto-desligado": "Conteúdo +18 desligado.",
+    "adulto-desligado": "Área madura desativada nesta conta.",
 }
 
 
@@ -218,6 +217,7 @@ def mudar_maioridade(
 ):
     if acao == "desligar":
         maioridade.desligar(db, usuario)
+        area_madura.sair(db, request.cookies.get(COOKIE_SESSAO))
         return RedirectResponse("/conta/maioridade?ok=adulto-desligado", status_code=303)
     # Senha errada aqui conta no mesmo limite do login: não vira um jeito de
     # testar senhas de quem deixou a conta aberta.
@@ -233,7 +233,9 @@ def mudar_maioridade(
         return _pagina_maioridade(request, 400, erro=str(erro))
     except maioridade.ErroDeVerificacao as erro:
         return _pagina_maioridade(request, 400, erro=str(erro))
-    return RedirectResponse("/conta/maioridade?ok=adulto-ligado", status_code=303)
+    # A senha acabou de ser digitada: entra direto, sem pedir de novo.
+    area_madura.abrir(db, usuario, request.cookies.get(COOKIE_SESSAO))
+    return RedirectResponse("/madura", status_code=303)
 
 
 @router.post("/conta/senha")

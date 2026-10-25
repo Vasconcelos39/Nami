@@ -28,12 +28,12 @@
       <dt>Último login</dt><dd>{{ resumo.ultimo_login | data or "—" }}</dd>
       <dt>Aparelhos conectados</dt><dd>{{ resumo.aparelhos }}</dd>
       <dt>Idioma preferido</dt><dd>{{ alvo.idioma_preferido | idioma }}</dd>
-      <dt>Conteúdo +18</dt>
+      <dt>Área madura</dt>
       <dd>
-        {% if alvo.adulto_bloqueado %}Bloqueado
-        {% elif alvo.mostrar_adulto and alvo.maioridade_confirmada_em %}Ligado (idade confirmada em {{ alvo.maioridade_confirmada_em | data }})
-        {% elif alvo.maioridade_confirmada_em %}Desligado (idade confirmada em {{ alvo.maioridade_confirmada_em | data }})
-        {% else %}Desligado{% endif %}
+        {% if alvo.adulto_bloqueado %}Bloqueada
+        {% elif alvo.mostrar_adulto and alvo.maioridade_confirmada_em %}Liberada (idade confirmada em {{ alvo.maioridade_confirmada_em | data }})
+        {% elif alvo.maioridade_confirmada_em %}Desativada (idade confirmada em {{ alvo.maioridade_confirmada_em | data }})
+        {% else %}Não liberada{% endif %}
       </dd>
       <dt>Favoritos</dt><dd>{{ resumo.favoritos }}</dd>
       <dt>Capítulos abertos</dt><dd>{{ resumo.capitulos }}</dd>
@@ -51,9 +51,9 @@
         <button type="submit" class="botao botao-secundario">{{ "Tirar admin" if alvo.is_admin else "Tornar admin" }}</button>
       </form>
       {% endif %}
-      <form method="post" action="/admin/usuarios/{{ alvo.id }}/adulto"{% if not alvo.adulto_bloqueado %} data-confirmar="Bloquear o +18 de {{ alvo.username }}? A pessoa não consegue ligar de novo até você desbloquear."{% endif %}>
+      <form method="post" action="/admin/usuarios/{{ alvo.id }}/adulto"{% if not alvo.adulto_bloqueado %} data-confirmar="Bloquear a área madura de {{ alvo.username }}? A pessoa sai na hora e não consegue liberar de novo até você desbloquear."{% endif %}>
         <input type="hidden" name="acao" value="{{ 'desbloquear' if alvo.adulto_bloqueado else 'bloquear' }}">
-        <button type="submit" class="botao botao-secundario">{{ "Desbloquear +18" if alvo.adulto_bloqueado else "Bloquear +18" }}</button>
+        <button type="submit" class="botao botao-secundario">{{ "Desbloquear área madura" if alvo.adulto_bloqueado else "Bloquear área madura" }}</button>
       </form>
       {% if not eu %}
       <form method="post" action="/admin/usuarios/{{ alvo.id }}/sessoes" data-confirmar="Desconectar {{ alvo.username }} de todos os aparelhos? A senha continua a mesma.">

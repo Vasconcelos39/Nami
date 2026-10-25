@@ -100,15 +100,16 @@ def test_progresso_de_obra_adulta_e_recusado_sem_opt_in(cliente, api):
     assert contar(cliente, Obra) == 0
 
 
-def test_historico_esconde_o_que_nao_pode_mais_ver(cliente, api):
+def test_historico_de_obra_adulta_fica_so_na_area_madura(cliente, api):
     cadastrar(cliente)
-    ligar_adulto(cliente)
+    ligar_adulto(cliente)  # libera e já entra na área madura
     preparar_obra(api, classificacao="erotica")
     assert salvar(cliente, 2).status_code == 204
-    assert "Obra Teste" in cliente.get("/historico").text
-
-    cliente.post("/conta/maioridade", data={"acao": "desligar"})
     assert "Obra Teste" not in cliente.get("/historico").text
+    assert "Obra Teste" in cliente.get("/madura/historico").text
+
+    cliente.post("/madura/sair", follow_redirects=False)
+    assert salvar(cliente, 3).status_code == 404  # com a área fechada, nem salva
 
 
 def test_remover_do_historico(cliente, api):
