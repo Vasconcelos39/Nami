@@ -25,7 +25,7 @@ from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.mangadex import MangaDex
 from app.fontes.registro import criar_registro
 from app.renderizar import PASTA_APP, render
-from app.rotas import admin, catalogo, conta, estante, leitor, madura, midia, noticias, reportes, suporte
+from app.rotas import admin, ajustes, catalogo, conta, estante, leitor, madura, midia, noticias, reportes, suporte
 from app.servicos.auth import LimiteTentativas, LoginNecessario
 from app.servicos.imagens import CacheCapas
 from app.servicos.protecao import (
@@ -84,7 +84,7 @@ def criar_app(
     app.state.limite_cadastro = LimiteTentativas(maximo=5, janela=60 * 60)
 
     app.mount("/static", StaticFiles(directory=PASTA_APP / "static"), name="static")
-    for modulo in (catalogo, leitor, midia, conta, estante, reportes, suporte, noticias, madura, admin):
+    for modulo in (catalogo, leitor, midia, conta, estante, reportes, suporte, noticias, madura, admin, ajustes):
         app.include_router(modulo.router)
 
     limite_paginas = LimiteDeTaxa(config.limite_por_minuto) if config.limite_por_minuto else None

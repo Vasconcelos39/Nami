@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block titulo %}Ajustar {{ original.titulo }} · Admin · Nami{% endblock %}
+{% block conteudo %}
+{% set bloqueada = ajuste and ajuste.bloqueada %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>{{ (ajuste and ajuste.titulo) or original.titulo }}</h1>
+    <span class="suave">{% if bloqueada %}<span class="cap-marca">bloqueada</span>{% endif %} {{ classificacao_efetiva.rotulo }}</span>
+  </div>
+  {% set aba = 'ajustes' %}{% include "admin/_menu.html" %}
+  <p class="links-obra">
+    <a href="/admin/ajustes">← Todas as obras ajustadas</a>
+    {% if not bloqueada %}<a href="{{ '/madura' if classificacao_efetiva.adulta }}/obra/{{ original.fonte }}/{{ original.id }}">Ver no site</a>{% endif %}
+    {% if original.link_original %}<a href="{{ original.link_original }}" target="_blank" rel="noopener">Ver no MangaDex ↗</a>{% endif %}
+  </p>
+
+  {# --------------------------------------------------------- informações #}
+  <form class="cartao-bloco" method="post" action="/admin/ajustes/{{ original.fonte }}/{{ original.id }}">
+    <h2>Informações</h2>
+    <p class="dica">Campo vazio = vale o que vem do MangaDex.</p>
+    <label class="marcar">
+      <input type="checkbox" name="bloqueada"{% if bloqueada %} checked{% endif %}>
+      <span><strong>Bloquear esta obra</strong>: some do site inteiro (listagens, busca, página, leitor e imagens), nas duas áreas.</span>
+    </label>
+    <div class="campo">
+      <label for="classificacao">Classificação</label>
+      <select id="classificacao" name="classificacao">
+        <option value="">Do MangaDex ({{ original.classificacao.rotulo }})</option>
+        {% for valor, nome in classificacoes %}
+        <option value="{{ valor }}"{% if ajuste and ajuste.classificacao == valor %} selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+      <p class="dica">
+        Erótico e pornográfico só aparecem na área madura. Uma obra reclassificada como adulta sai do site normal na hora,
+        mas não entra nas listagens da área madura (lá ela aparece pelo link, pelo histórico ou pelos favoritos).
+      </p>
+    </div>
+    <div class="campo">
+      <label for="titulo">Título</label>
+      <input id="titulo" name="titulo" type="text" maxlength="300" value="{{ ajuste.titulo if ajuste and ajuste.titulo else '' }}" placeholder="{{ original.titulo }}">
+    </div>
+    <div class="campo">
+      <label for="descricao">Descrição</label>
+      <textarea id="descricao" name="descricao" rows="6" maxlength="20000" placeholder="{{ original.descricao[:300] }}{% if original.descricao | length > 300 %}…{% endif %}">{{ ajuste.descricao if ajuste and ajuste.descricao else '' }}</textarea>
+    </div>
+    <div class="campo">
+      <label for="motivo">Anotação (só os admins veem)</label>
+      <input id="motivo" name="motivo" type="text" maxlength="500" value="{{ ajuste.motivo if ajuste and ajuste.motivo else '' }}" placeholder="ex.: capa original muito explícita">
+    </div>
+    <button type="submit" class="botao">Salvar</button>
+  </form>
+
+  {# ---------------------------------------------------------------- capa #}
+  <section class="cartao-bloco">
+    <h2>Capa</h2>
+    {% if erro_capa %}<p class="alerta alerta-erro" role="alert">{{ erro_capa }}</p>{% endif %}
+    <div class="capa-ajuste">
+      <img src="{{ capa_url or '/static/sem-capa.svg' }}" alt="Capa atual" width="120" height="180">
+      <div class="capa-ajuste-acoes">
+        <form method="post" action="/admin/ajustes/{{ original.fonte }}/{{ original.id }}/capa" enctype="multipart/form-data">
+          <div class="campo">
+            <label for="arquivo-capa">Nova capa (imagem)</label>
+            <input id="arquivo-capa" name="arquivo" type="file" accept="image/*" required>
+          </div>
+          <button type="submit" class="botao">Trocar capa</button>
+        </form>
+        {% if ajuste and ajuste.capa %}
+        <form method="post" action="/admin/ajustes/{{ original.fonte }}/{{ original.id }}/capa">
+          <input type="hidden" name="acao" value="original">
+          <button type="submit" class="botao botao-secundario">Voltar pra capa do MangaDex</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------ capítulos extras #}
+  <section class="cartao-bloco" id="extras">
+    <h2>Capítulos extras</h2>
+    <p class="dica">Capítulos que você envia (ex.: um que o MangaDex não tem). Eles entram na lista da obra na ordem do número.</p>
+    {% if extras %}
+    <ul class="lista-extras">
+      {% for e in extras %}
+      <li>
+        <span>
+          <strong>{% if e.numero %}Cap. {{ e.numero }}{% else %}Vol. {{ e.volume }}{% endif %}</strong>{% if e.titulo %} — {{ e.titulo }}{% endif %}
+          <span class="suave">· {{ e.idioma | idioma }} · {{ e.total_paginas }} páginas{% if e.numero and e.volume %} · vol. {{ e.volume }}{% endif %}</span>
+        </span>
+        <form method="post" action="/admin/ajustes/{{ original.fonte }}/{{ original.id }}/extras/{{ e.id }}/remover"
+              data-confirmar="Remover este capítulo extra? As páginas são apagadas do servidor.">
+          <button type="submit" class="botao-link perigo">Remover</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <form method="post" action="/admin/ajustes/{{ original.fonte }}/{{ original.id }}/extras" enctype="multipart/form-data" class="adicionar-capitulos" data-envio>
+      <h3>Enviar capítulo</h3>
+      {% if erro_extra %}<p class="alerta alerta-erro" role="alert">{{ erro_extra }}</p>{% endif %}
+      {% set f = extra_form or {} %}
+      <div class="campo">
+        <label for="arquivo-extra">Arquivo (.cbz ou .cbr)</label>
+        <input id="arquivo-extra" name="arquivo" type="file" accept=".cbz,.cbr,.zip,.rar" required>
+      </div>
+      <div class="campos-lado">
+        <div class="campo">
+          <label for="numero">Capítulo nº</label>
+          <input id="numero" name="numero" type="text" inputmode="decimal" maxlength="20" value="{{ f.numero or '' }}" placeholder="ex.: 12 ou 12.5">
+        </div>
+        <div class="campo">
+          <label for="volume">Volume (opcional)</label>
+          <input id="volume" name="volume" type="text" inputmode="decimal" maxlength="20" value="{{ f.volume or '' }}">
+        </div>
+        <div class="campo">
+          <label for="idioma-extra">Idioma</label>
+          <select id="idioma-extra" name="idioma">
+            {% for valor, nome in idiomas %}<option value="{{ valor }}"{% if valor == f.idioma %} selected{% endif %}>{{ nome }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="campo">
+        <label for="titulo-extra">Título do capítulo (opcional)</label>
+        <input id="titulo-extra" name="titulo" type="text" maxlength="300" value="{{ f.titulo or '' }}">
+      </div>
+      <button type="submit" class="botao" data-enviar>Enviar</button>
+      <p class="dica" data-aguarde hidden>Enviando e extraindo as páginas…</p>
+    </form>
+  </section>
+
+  {# --------------------------------------------------- capítulos do MangaDex #}
+  <section class="cartao-bloco" id="capitulos">
+    <h2>Capítulos do MangaDex</h2>
+    <p class="dica">Capítulo escondido some da lista da obra e do leitor (ex.: capítulo errado ou de outra obra).</p>
+    {% if capitulos %}
+    <details{% if ocultos %} open{% endif %}>
+      <summary>{{ capitulos | length }} capítulo{{ "s" if capitulos | length != 1 }}{% if ocultos %}, {{ ocultos | length }} escondido{{ "s" if ocultos | length != 1 }}{% endif %}</summary>
+      <ul class="lista-extras">
+        {% for c in capitulos %}
+        {% set escondido = c.id in ocultos %}
+        <li{% if escondido %} class="inativo"{% endif %}>
+          <span>
+            <strong>{{ c.rotulo }}</strong>{% if c.titulo %} — {{ c.titulo }}{% endif %}
+            <span class="suave">· {{ c.idioma | idioma }} · {{ c.grupos | join(", ") or "sem grupo" }}{% if escondido %} · escondido{% endif %}</span>
+          </span>
+          <form method="post" action="/admin/ajustes/{{ original.fonte }}/{{ original.id }}/capitulos/{{ c.id }}">
+            <input type="hidden" name="acao" value="{{ 'mostrar' if escondido else 'esconder' }}">
+            <button type="submit" class="botao-link{% if not escondido %} perigo{% endif %}">{{ "Mostrar" if escondido else "Esconder" }}</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% else %}
+    <p class="vazio">O MangaDex não tem capítulos desta obra em {{ idiomas | map("last") | join(" ou ") | lower }}.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin.js?v={{ versao }}" defer></script>{% endblock %}

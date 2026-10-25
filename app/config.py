@@ -76,6 +76,11 @@ class Config(BaseSettings):
     def dir_temporario(self) -> Path:
         return self.data_dir / "tmp"
 
+    @property
+    def dir_ajustes(self) -> Path:
+        """Capas trocadas e capítulos extras que os admins põem em obras do MangaDex."""
+        return self.data_dir / "ajustes"
+
 
 @lru_cache
 def get_config() -> Config:

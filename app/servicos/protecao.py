@@ -43,7 +43,7 @@ def chave_do_cliente(request: Request) -> str:
 
 def limite_do_corpo(caminho: str, config: Config) -> int:
     """Tamanho máximo (bytes) do corpo de uma requisição nesse caminho."""
-    if caminho.startswith("/admin/obras"):  # envio de .cbz/.cbr e de capa
+    if caminho.startswith(("/admin/obras", "/admin/ajustes")):  # envio de .cbz/.cbr e de capa
         return config.upload_max_mb * MB
     return LIMITE_CORPO
 

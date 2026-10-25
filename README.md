@@ -51,6 +51,7 @@ a cada atualização).
 - [x] **Fase 7:** autocompletar na busca, aviso de obra que só dá pra ler no site oficial, página por usuário no admin, verificação de idade e IP real atrás do proxy
 - [x] **Fase 8:** área de Novidades, pra contar o que mudou no site
 - [x] **Fase 9:** área madura separada (o site normal fica sem nada adulto) e Esc pra sair do capítulo
+- [x] **Fase 10:** ajustes do admin em obras do MangaDex (bloquear, capa, classificação, título, descrição, capítulos)
 
 ## Rodar no PC (Windows)
 

@@ -9,11 +9,11 @@
 
 	# Envio de .cbz/.cbr no painel: mesmo limite da Nami (NAMI_UPLOAD_MAX_MB).
 	# O resto do site só recebe formulários pequenos.
-	@envio path /admin/obras /admin/obras/*
+	@envio path /admin/obras /admin/obras/* /admin/ajustes/*
 	request_body @envio {
 		max_size 1GB
 	}
-	@resto not path /admin/obras /admin/obras/*
+	@resto not path /admin/obras /admin/obras/* /admin/ajustes/*
 	request_body @resto {
 		max_size 1MB
 	}

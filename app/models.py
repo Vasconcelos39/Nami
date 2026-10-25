@@ -231,6 +231,64 @@ class Noticia(Base):
     autor: Mapped[Usuario | None] = relationship()
 
 
+class AjusteObra(Base):
+    """O que um admin mudou numa obra que vem de fora (MangaDex).
+
+    A obra continua vindo de lá; a Nami aplica isto por cima (fontes/ajustes.py).
+    Campo vazio = vale o original.
+    """
+
+    __tablename__ = "ajuste_obra"
+    __table_args__ = (
+        CheckConstraint(
+            f"classificacao IS NULL OR classificacao IN ({_valores(Classificacao)})", name="classificacao"
+        ),
+    )
+
+    fonte_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    obra_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    titulo_original: Mapped[str] = mapped_column(String(300), default="")  # pra lista do painel
+    bloqueada: Mapped[bool] = mapped_column(default=False)  # some do site inteiro (as duas áreas)
+    classificacao: Mapped[str | None] = mapped_column(String(15))
+    titulo: Mapped[str | None] = mapped_column(String(300))
+    descricao: Mapped[str | None] = mapped_column(Text)
+    capa: Mapped[bool] = mapped_column(default=False)  # data/ajustes/capas/<fonte>/<obra>.jpg
+    motivo: Mapped[str | None] = mapped_column(String(500))  # anotação só pros admins
+    atualizado_em: Mapped[datetime] = mapped_column(default=agora)
+
+
+class CapituloOculto(Base):
+    """Capítulo de uma obra de fora que um admin escondeu."""
+
+    __tablename__ = "capitulo_oculto"
+    __table_args__ = (Index("ix_capitulo_oculto_obra", "fonte_id", "obra_id"),)
+
+    fonte_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    capitulo_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    obra_id: Mapped[str] = mapped_column(String(64))
+    criado_em: Mapped[datetime] = mapped_column(default=agora)
+
+
+class CapituloExtra(Base):
+    """Capítulo que um admin enviou pra uma obra de fora (ex.: um que o MangaDex
+    não tem). As páginas ficam em data/ajustes/extras/; na lista de capítulos
+    ele entra na ordem certa pelo número informado."""
+
+    __tablename__ = "capitulo_extra"
+    __table_args__ = (Index("ix_capitulo_extra_obra", "fonte_id", "obra_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    fonte_id: Mapped[str] = mapped_column(String(32))
+    obra_id: Mapped[str] = mapped_column(String(64))
+    numero: Mapped[str | None] = mapped_column(String(20))
+    volume: Mapped[str | None] = mapped_column(String(20))
+    titulo: Mapped[str | None] = mapped_column(String(300))
+    idioma: Mapped[str] = mapped_column(String(10))
+    total_paginas: Mapped[int]
+    pasta: Mapped[str] = mapped_column(String(100))  # relativa a data/ajustes/extras
+    criado_em: Mapped[datetime] = mapped_column(default=agora)
+
+
 MOTIVOS_REPORTE = ("capa", "capitulos", "informacoes", "classificacao", "outro")
 
 

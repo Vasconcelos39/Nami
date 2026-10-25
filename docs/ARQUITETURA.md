@@ -27,6 +27,7 @@ A Nami **não guarda scans**. O conteúdo vem de duas fontes legítimas:
 | 7 | Autocompletar na busca, aviso de obra que só dá pra ler fora, página por usuário no admin, verificação de idade, IP real atrás do NPM | pronta |
 | 8 | Área de Novidades (posts do admin sobre o que mudou, com rascunho e bolinha no menu) | pronta |
 | 9 | Área madura separada (senha pra entrar, tema preto, histórico e favoritos próprios); site normal sem nada adulto; Esc sai do capítulo | pronta |
+| 10 | Ajustes do admin em obras do MangaDex: bloquear, classificação, título, descrição, capa, esconder capítulos e capítulos extras | pronta |
 
 Deploy passo a passo: [DEPLOY.md](DEPLOY.md).
 
@@ -65,8 +66,9 @@ app/
     maioridade.py    verificação de idade pra liberar a área madura
     area_madura.py   entrar com senha, prazo de 30 min e sair da área madura
     noticias.py      posts de Novidades e o texto simples (escapa tudo)
+    ajustes.py       o que os admins mudam em obras do MangaDex (painel → Ajustes)
   rotas/             catalogo (início, seções, busca, sugestões, obra), leitor,
-                     midia (proxy), conta, estante, reportes, suporte, noticias, madura, admin
+                     midia (proxy), conta, estante, reportes, suporte, noticias, madura, admin, ajustes
   templates/         HTML (admin/ = painel, suporte/ = chat de suporte)
   static/            CSS; JS do site (nami.js), do autocompletar da busca, do leitor,
                      do painel, do chat de suporte e o service worker (sw.js); manifest e tela offline;
@@ -283,6 +285,9 @@ que vale é o da fonte, não o que o navegador manda.
 
 - Biblioteca: enviar obra (um ou vários arquivos), editar dados e capa,
   adicionar/renomear/remover capítulos, remover obra (com confirmação).
+- Ajustes: mexer em obras do MangaDex por cima do que vem de lá (bloquear,
+  classificação, título, descrição, capa, esconder capítulos e enviar
+  capítulos extras). Veja "Ajustes do admin em obras do MangaDex".
 - Usuários: a lista só mostra as contas; clicar numa abre a página dela, com
   um resumo (último login, aparelhos conectados, área madura, favoritos, tickets,
   reportes) e as ações: tornar/tirar admin, bloquear/desbloquear a área madura,
@@ -346,6 +351,33 @@ mensagem) e os admins respondem, como num chat.
 - **Limites:** assunto de 3 a 120 caracteres, mensagem até 4000, no máximo 5
   conversas abertas por conta e 30 mensagens por hora (admins sem limite). O
   texto aparece sempre como texto (nunca como HTML).
+
+## Ajustes do admin em obras do MangaDex
+
+As obras do MangaDex continuam vindo de lá, mas os admins mudam o que quiserem
+por cima (painel → **Ajustes**, ou o botão "Ajustar" na página da obra). A fonte
+registrada como "mangadex" é `fontes/ajustes.py:ComAjustes`, que repassa tudo pro
+MangaDex e aplica os ajustes do banco:
+
+| Ajuste | Efeito |
+|---|---|
+| Bloquear | some do site inteiro, nas duas áreas: listagens, busca, página, leitor, imagens, histórico e favoritos |
+| Classificação | vale em toda checagem (ex.: "livre" com capa explícita vira "sugestivo" ou adulto) |
+| Título / descrição | trocam na página e nas listagens; campo vazio volta ao original |
+| Capa | imagem enviada (guardada em `data/ajustes/capas/`); o endereço da capa ganha `?v=` novo pra nenhum navegador ficar com a antiga |
+| Esconder capítulo | some da lista da obra e o leitor responde 404 |
+| Capítulo extra | .cbz/.cbr enviado com o número ("capítulo 12.5"); entra na lista da obra na ordem certa, com "Adicionado pelo admin" no lugar do grupo, e o leitor navega normalmente entre ele e os do MangaDex |
+
+- Tabelas `ajuste_obra`, `capitulo_oculto` e `capitulo_extra` (migração 0007).
+  Os capítulos extras têm id `extra-<hex>` e as páginas ficam em `data/ajustes/extras/`.
+- Trocar a classificação ou o título atualiza também a cópia leve da obra no
+  banco (a que o histórico e os favoritos usam).
+- Limite conhecido: as listagens vêm do MangaDex já filtradas pela
+  classificação de lá. Obra "livre" reclassificada como adulta sai do site
+  normal na hora, mas não entra nas listagens da área madura (dá pra chegar
+  nela pelo link, pelo histórico ou pelos favoritos). Obras bloqueadas ou
+  reclassificadas também deixam uma página da listagem com alguns cartões a menos.
+- As obras da biblioteca local os admins já editam direto em "Biblioteca local".
 
 ## Novidades
 

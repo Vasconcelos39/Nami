@@ -55,7 +55,10 @@
         </div>
       </details>
       {% endif %}
-      {% if obra.fonte == 'local' and usuario and usuario.is_admin %}<a class="botao botao-secundario" href="/admin/obras/{{ obra.id }}">Editar</a>{% endif %}
+      {% if usuario and usuario.is_admin %}
+      {% if obra.fonte == 'local' %}<a class="botao botao-secundario" href="/admin/obras/{{ obra.id }}">Editar</a>
+      {% else %}<a class="botao botao-secundario" href="/admin/ajustes/{{ obra.fonte }}/{{ obra.id }}">Ajustar</a>{% endif %}
+      {% endif %}
     </div>
     {% if em_dia %}<p class="suave">Você já leu todos os capítulos disponíveis{% if cobertura.faltando %}; os próximos só nos sites oficiais{% endif %}.</p>{% endif %}
     {% if reportado %}<p class="alerta alerta-ok" role="status">Obrigado! O aviso foi enviado pros admins.</p>{% endif %}

@@ -486,6 +486,19 @@ h2 { font-size: 1.2rem; margin: 0; }
 .acoes-usuario { display: flex; flex-wrap: wrap; gap: 10px; }
 .acoes-usuario form { margin: 0; }
 .botao:disabled { opacity: .5; cursor: not-allowed; }
+/* ajustes em obras do MangaDex */
+.form-linha { flex-direction: row; align-items: flex-end; flex-wrap: wrap; }
+.form-linha .campo { flex: 1 1 260px; }
+.capa-ajuste { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.capa-ajuste img { width: 120px; height: 180px; object-fit: cover; border-radius: 8px; background: var(--superficie-2); }
+.capa-ajuste-acoes { display: flex; flex-direction: column; gap: 12px; flex: 1 1 240px; }
+.capa-ajuste-acoes form { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.lista-extras { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--borda); border-radius: var(--raio); overflow: hidden; }
+.lista-extras li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; }
+.lista-extras li + li { border-top: 1px solid var(--borda); }
+.lista-extras li.inativo { color: var(--texto-suave); }
+.lista-extras form { margin: 0; }
+details > summary { cursor: pointer; color: var(--texto-suave); }
 @media (max-width: 520px) {
   .ficha { grid-template-columns: 1fr; gap: 2px; }
   .ficha dd + dt { margin-top: 8px; }

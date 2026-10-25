@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Ajustes · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco"><h1>Ajustes em obras do MangaDex</h1></div>
+  {% set aba = 'ajustes' %}{% include "admin/_menu.html" %}
+
+  <p class="dica">
+    As obras do MangaDex continuam vindo de lá, mas aqui você muda o que quiser por cima: bloquear a obra,
+    trocar a classificação, o título, a descrição ou a capa, esconder capítulos e enviar capítulos extras.
+    Também dá pra abrir os ajustes pelo botão “Ajustar” na página de qualquer obra do MangaDex.
+  </p>
+  <form class="cartao-bloco form-linha" method="get" action="/admin/ajustes/abrir">
+    <div class="campo">
+      <label for="endereco">Link ou id da obra no MangaDex</label>
+      <input id="endereco" name="endereco" type="text" maxlength="300" required
+             placeholder="https://mangadex.org/title/…">
+    </div>
+    <button type="submit" class="botao">Abrir</button>
+  </form>
+
+  {% if linhas %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela-clicavel">
+      <thead><tr><th>Obra</th><th>O que mudou</th><th>Atualizado em</th></tr></thead>
+      <tbody>
+        {% for a, ocultos, extras in linhas %}
+        <tr{% if a.bloqueada %} class="inativo"{% endif %}>
+          <td><a class="linha-link" href="/admin/ajustes/{{ a.fonte_id }}/{{ a.obra_id }}"><strong>{{ a.titulo or a.titulo_original }}</strong></a>
+            {% if a.titulo %}<br><span class="suave">{{ a.titulo_original }}</span>{% endif %}</td>
+          <td>
+            {% set mudancas = [] %}
+            {% if a.bloqueada %}{% set _ = mudancas.append("bloqueada") %}{% endif %}
+            {% if a.classificacao %}{% set _ = mudancas.append("classificação") %}{% endif %}
+            {% if a.titulo %}{% set _ = mudancas.append("título") %}{% endif %}
+            {% if a.descricao %}{% set _ = mudancas.append("descrição") %}{% endif %}
+            {% if a.capa %}{% set _ = mudancas.append("capa") %}{% endif %}
+            {% if ocultos %}{% set _ = mudancas.append(ocultos ~ " capítulo" ~ ("s" if ocultos != 1) ~ " escondido" ~ ("s" if ocultos != 1)) %}{% endif %}
+            {% if extras %}{% set _ = mudancas.append(extras ~ " capítulo" ~ ("s" if extras != 1) ~ " extra" ~ ("s" if extras != 1)) %}{% endif %}
+            {{ mudancas | join(" · ") or "anotação" }}
+          </td>
+          <td>{{ a.atualizado_em | data }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">Nenhuma obra ajustada ainda.</p>
+  {% endif %}
+</div>
+{% endblock %}

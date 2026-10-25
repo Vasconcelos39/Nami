@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Config
+from app.fontes.ajustes import ComAjustes
 from app.fontes.base import Fonte, NaoEncontrado
 from app.fontes.local import BibliotecaLocal
 from app.fontes.mangadex import MangaDex
@@ -28,4 +29,6 @@ def criar_registro(
     config: Config, sessoes: sessionmaker[Session], mangadex: MangaDex | None = None
 ) -> Registro:
     # `mangadex` existe pros testes trocarem o MangaDex de verdade por um simulado.
-    return Registro([mangadex or MangaDex(config), BibliotecaLocal(config, sessoes)])
+    # As obras do MangaDex passam pelos ajustes dos admins (fontes/ajustes.py);
+    # as da biblioteca local os admins editam direto.
+    return Registro([ComAjustes(mangadex or MangaDex(config), sessoes, config), BibliotecaLocal(config, sessoes)])

@@ -9,12 +9,12 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
 from app import dominio
-from app.models import Capitulo, Favorito, Obra, Progresso, Usuario, agora
+from app.models import AjusteObra, Capitulo, Favorito, Obra, Progresso, Usuario, agora
 
 
 @dataclass(frozen=True)
@@ -217,7 +217,11 @@ def historico(
 
 
 def _das(classificacoes: Collection[dominio.Classificacao]):
-    return Obra.classificacao.in_([c.value for c in classificacoes])
+    """Obras dessas classificações e que nenhum admin bloqueou."""
+    bloqueada = exists().where(
+        AjusteObra.fonte_id == Obra.fonte_id, AjusteObra.obra_id == Obra.id_externo, AjusteObra.bloqueada
+    )
+    return Obra.classificacao.in_([c.value for c in classificacoes]) & ~bloqueada
 
 
 def remover_do_historico(db: Session, usuario: Usuario, fonte_id: str, obra_id: str) -> None:

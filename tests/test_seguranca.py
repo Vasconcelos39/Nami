@@ -204,9 +204,13 @@ def test_cabecalhos_novos(cliente):
 def test_toda_rota_do_admin_exige_admin(cliente):
     assert any(d.dependency is exigir_admin for d in admin.router.dependencies)
     # Na prática: visitante vai pro login e conta comum recebe 404 em todas.
+    from app.rotas import ajustes
+
+    assert any(d.dependency is exigir_admin for d in ajustes.router.dependencies)
     caminhos = [
         (metodo, re.sub(r"\{[^}]+\}", "1", rota.path))
-        for rota in admin.router.routes
+        for modulo in (admin, ajustes)
+        for rota in modulo.router.routes
         for metodo in rota.methods
     ]
     assert len(caminhos) > 10
