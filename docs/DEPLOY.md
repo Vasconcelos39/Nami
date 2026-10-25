@@ -105,6 +105,15 @@ pela rede Docker dos dois. Nenhuma porta nova é aberta.
 Se o HTTPS do NPM estiver numa porta diferente da 443 (ex.: `:8443` por causa
 da operadora), tudo funciona igual; o endereço só leva a porta no final.
 
+**Teste de fora de casa:** no celular, desligue o Wi-Fi e abra o endereço pelo
+4G. Muitos roteadores não abrem o próprio endereço público de dentro de casa,
+então um teste pelo Wi-Fi pode falhar mesmo com tudo certo.
+
+**IP de quem acessa:** a Nami só aceita o IP real do visitante informado por
+containers das redes internas do Docker (`FORWARDED_ALLOW_IPS` no Dockerfile),
+que é onde o NPM fica. Se o seu proxy estiver em outra rede (raro), defina
+`FORWARDED_ALLOW_IPS` no `environment` do compose com o IP ou a faixa dele.
+
 **Pra atualizar a Nami:** *Stacks* → `nami` → *Editor* → *Update the stack*
 com *Re-pull image and redeploy* ligado. Os dados ficam no volume
 `nami_nami_dados` e não se perdem.

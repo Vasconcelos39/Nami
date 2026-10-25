@@ -107,7 +107,7 @@ def test_historico_esconde_o_que_nao_pode_mais_ver(cliente, api):
     assert salvar(cliente, 2).status_code == 204
     assert "Obra Teste" in cliente.get("/historico").text
 
-    cliente.post("/conta/preferencias", data={})  # desligou o +18
+    cliente.post("/conta/maioridade", data={"acao": "desligar"})
     assert "Obra Teste" not in cliente.get("/historico").text
 
 

@@ -5,41 +5,20 @@
   <div class="cabeca-bloco"><h1>Usuários</h1><span class="suave">{{ lista | length }} conta{{ "s" if lista | length != 1 }}</span></div>
   {% set aba = 'usuarios' %}{% include "admin/_menu.html" %}
 
-  {% if senha_temporaria %}
-  <div class="alerta alerta-ok" role="status">
-    Senha temporária de <strong>{{ senha_temporaria[0] }}</strong>: <code class="senha">{{ senha_temporaria[1] }}</code><br>
-    Passe pra pessoa e peça pra trocar em “Sua conta” assim que entrar. Ela não aparece de novo.
-  </div>
-  {% endif %}
-
+  <p class="dica">Clique numa conta pra ver os detalhes e as ações (admin, desativar, senha, +18).</p>
   <div class="tabela-rolagem">
-    <table class="tabela">
-      <thead><tr><th>Conta</th><th>Criada em</th><th>Situação</th><th>Ações</th></tr></thead>
+    <table class="tabela tabela-clicavel">
+      <thead><tr><th>Conta</th><th>Criada em</th><th>Situação</th></tr></thead>
       <tbody>
         {% for u in lista %}
         <tr{% if not u.ativo %} class="inativo"{% endif %}>
           <td>
-            <strong>{{ u.username }}</strong>
+            <a class="linha-link" href="/admin/usuarios/{{ u.id }}"><strong>{{ u.username }}</strong></a>
             {% if u.is_admin %}<span class="cap-marca">admin</span>{% endif %}
             {% if u.id == usuario.id %}<span class="cap-marca">você</span>{% endif %}
           </td>
           <td>{{ u.criado_em | data }}</td>
-          <td>{% if u.ativo %}Ativa{% else %}Desativada{% endif %}{% if u.mostrar_adulto %} · +18 ligado{% endif %}</td>
-          <td class="acoes-tabela">
-            {% if u.id != usuario.id %}
-            <form method="post" action="/admin/usuarios/{{ u.id }}/admin">
-              <input type="hidden" name="acao" value="{{ 'rebaixar' if u.is_admin else 'promover' }}">
-              <button type="submit" class="botao-link">{{ "Tirar admin" if u.is_admin else "Tornar admin" }}</button>
-            </form>
-            <form method="post" action="/admin/usuarios/{{ u.id }}/ativo">
-              <input type="hidden" name="acao" value="{{ 'desativar' if u.ativo else 'reativar' }}">
-              <button type="submit" class="botao-link{% if u.ativo %} perigo{% endif %}">{{ "Desativar" if u.ativo else "Reativar" }}</button>
-            </form>
-            {% endif %}
-            <form method="post" action="/admin/usuarios/{{ u.id }}/senha" data-confirmar="Criar uma senha temporária pra {{ u.username }}? A senha atual deixa de funcionar e a pessoa é desconectada.">
-              <button type="submit" class="botao-link">Redefinir senha</button>
-            </form>
-          </td>
+          <td>{% if u.ativo %}Ativa{% else %}Desativada{% endif %}{% if u.adulto_bloqueado %} · +18 bloqueado{% elif u.mostrar_adulto and u.maioridade_confirmada_em %} · +18 ligado{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -47,4 +26,3 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/js/admin.js?v={{ versao }}" defer></script>{% endblock %}

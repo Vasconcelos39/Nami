@@ -74,11 +74,28 @@ h2 { font-size: 1.2rem; margin: 0; }
 .secoes { display: flex; gap: 4px; }
 .secoes a { color: var(--texto-suave); padding: 6px 10px; border-radius: 8px; font-weight: 500; white-space: nowrap; }
 .secoes a:hover, .secoes a[aria-current] { color: var(--texto); background: var(--superficie-2); text-decoration: none; }
-.busca { display: flex; gap: 6px; margin-left: auto; flex: 1 1 240px; max-width: 380px; }
+.busca { position: relative; display: flex; gap: 6px; margin-left: auto; flex: 1 1 240px; max-width: 380px; }
 .busca input {
   flex: 1; min-width: 0; padding: 8px 12px; border-radius: 8px;
   border: 1px solid var(--borda); background: var(--superficie); color: var(--texto); font: inherit;
 }
+
+/* autocompletar da busca (static/js/sugestoes.js) */
+.sugestoes {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+  list-style: none; margin: 0; padding: 4px; border-radius: var(--raio);
+  border: 1px solid var(--borda); background: var(--superficie);
+  box-shadow: 0 12px 32px rgb(0 0 0 / .45);
+  max-height: min(70vh, 440px); overflow-y: auto;
+}
+.sugestoes a { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; color: var(--texto); }
+.sugestoes a:hover, .sugestoes [aria-selected="true"] a { background: var(--superficie-2); text-decoration: none; }
+.sugestao-capa { flex: none; width: 34px; height: 50px; border-radius: 4px; overflow: hidden; background: var(--superficie-2); }
+.sugestao-capa img { width: 100%; height: 100%; object-fit: cover; }
+.sugestao-texto { display: flex; flex-direction: column; min-width: 0; }
+.sugestao-titulo { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugestao-info { color: var(--texto-suave); font-size: .8rem; }
+.sugestoes .ver-todos a { justify-content: center; color: var(--destaque); font-size: .9rem; }
 
 /* ---------- botões e blocos ---------- */
 
@@ -173,6 +190,12 @@ h2 { font-size: 1.2rem; margin: 0; }
 .cartao-tipo { font-size: .8rem; color: var(--texto-suave); }
 .selo { position: absolute; top: 6px; left: 6px; padding: 2px 6px; border-radius: 6px; font-size: .7rem; font-weight: 700; background: var(--sugestivo); color: #1d1300; }
 .selo.selo-erotica, .selo.selo-pornographic { background: var(--adulto); color: #fff; }
+/* Obra sem nenhum capítulo pra ler aqui (só nos sites oficiais): faixa embaixo da capa. */
+.selo.selo-fora {
+  top: auto; left: 0; right: 0; bottom: 0; border-radius: 0; padding: 4px 6px; text-align: center;
+  background: color-mix(in srgb, var(--fundo) 88%, transparent); color: var(--texto); font-weight: 600;
+}
+.cartao-capa:has(.selo-fora) img { opacity: .6; }
 
 /* ---------- página da obra ---------- */
 
@@ -293,6 +316,9 @@ h2 { font-size: 1.2rem; margin: 0; }
   .convite-instalar .fechar { grid-column: 3; grid-row: 1; }
 }
 .conta-atalhos { margin-top: -8px; }
+.rodape-conta { margin: 4px 0 0; text-align: center; font-size: .8rem; color: var(--texto-suave); }
+.rodape-conta a { color: var(--texto-suave); text-decoration: underline; text-underline-offset: 2px; }
+.rodape-conta a:hover { color: var(--texto); }
 
 /* contador de novidades (respostas do suporte, tickets esperando) */
 .contador {
@@ -363,7 +389,7 @@ h2 { font-size: 1.2rem; margin: 0; }
 .cartao-bloco { display: flex; flex-direction: column; gap: 16px; padding: 20px; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--superficie); }
 .campo { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .campo > label, .campo > legend { font-weight: 600; padding: 0; }
-.campo input[type="text"], .campo input[type="password"], .campo select {
+.campo input[type="text"], .campo input[type="password"], .campo input[type="date"], .campo select {
   padding: 10px 12px; border-radius: 8px; border: 1px solid var(--borda);
   background: var(--fundo); color: var(--texto); font: inherit;
 }
@@ -410,8 +436,22 @@ h2 { font-size: 1.2rem; margin: 0; }
 .tabela th, .tabela td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--borda); vertical-align: middle; }
 .tabela th { color: var(--texto-suave); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
 .tabela tr.inativo td { color: var(--texto-suave); }
-.acoes-tabela { display: flex; flex-wrap: wrap; gap: 6px 14px; }
-.acoes-tabela form { margin: 0; }
+/* Lista de contas: a linha inteira leva pra página da conta (o link "estica" sobre ela). */
+.tabela-clicavel tbody tr { position: relative; }
+.tabela-clicavel tbody tr:hover td { background: var(--superficie); }
+.tabela-clicavel .linha-link { color: var(--texto); }
+.tabela-clicavel .linha-link::after { content: ""; position: absolute; inset: 0; }
+/* página de uma conta */
+.ficha { display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; margin: 0; }
+.ficha dt { color: var(--texto-suave); }
+.ficha dd { margin: 0; }
+.acoes-usuario { display: flex; flex-wrap: wrap; gap: 10px; }
+.acoes-usuario form { margin: 0; }
+.botao:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 520px) {
+  .ficha { grid-template-columns: 1fr; gap: 2px; }
+  .ficha dd + dt { margin-top: 8px; }
+}
 .linha-capitulo { display: grid; grid-template-columns: 70px 70px 1fr auto; gap: 8px; align-items: center; margin: 0; }
 .linha-capitulo input {
   min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--borda);

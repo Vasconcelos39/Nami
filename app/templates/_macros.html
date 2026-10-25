@@ -5,6 +5,7 @@
   <span class="cartao-capa{% if obra.classificacao.adulta and not revelar %} capa-adulta{% endif %}">
     <img src="{{ obra.capa_url or '/static/sem-capa.svg' }}" alt="" loading="lazy" decoding="async">
     {% if obra.classificacao != 'safe' %}<span class="selo selo-{{ obra.classificacao }}">{{ obra.classificacao.rotulo }}</span>{% endif %}
+    {% if obra.so_fora %}<span class="selo selo-fora" title="Nenhum capítulo dá pra ler aqui: só nos sites oficiais">Só no site oficial</span>{% endif %}
   </span>
   <span class="cartao-titulo">{{ obra.titulo }}</span>
   <span class="cartao-tipo">{{ obra.tipo.rotulo }}{% if obra.fonte == 'local' %} · biblioteca{% endif %}</span>

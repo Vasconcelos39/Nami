@@ -1,10 +1,13 @@
 """Testes da auditoria de segurança: limites, CSRF, CORS, erros e acessos."""
 
+import asyncio
 import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.main import criar_app
 from app.rotas import admin
@@ -30,6 +33,38 @@ def test_ipv6_conta_o_bloco_inteiro():
     assert chave_do_cliente(_pedido("2001:db8:1:3::1")) != a
     assert chave_do_cliente(_pedido("203.0.113.7")) == "203.0.113.7"
     assert chave_do_cliente(_pedido("::ffff:203.0.113.7")) == "203.0.113.7"
+
+
+def _confiaveis_do_dockerfile() -> str:
+    texto = (Path(__file__).parent.parent / "Dockerfile").read_text(encoding="utf-8")
+    return re.search(r'FORWARDED_ALLOW_IPS="([^"]+)"', texto).group(1)
+
+
+@pytest.mark.parametrize(
+    ("de_onde", "encaminhado", "esperado"),
+    [
+        # O visitante inventa um IP; o NPM (na rede do Docker) põe o verdadeiro no fim.
+        ("172.18.0.3", "1.2.3.4, 203.0.113.9", "203.0.113.9"),
+        ("172.18.0.3", "203.0.113.9", "203.0.113.9"),
+        # Quem fala direto com a Nami, sem passar por um proxy, não escolhe o próprio IP.
+        ("203.0.113.50", "1.2.3.4", "203.0.113.50"),
+    ],
+)
+def test_ip_real_atras_do_proxy(de_onde, encaminhado, esperado):
+    vistos = []
+
+    async def app(scope, receive, send):
+        vistos.append(scope["client"][0])
+
+    meio = ProxyHeadersMiddleware(app, trusted_hosts=_confiaveis_do_dockerfile())
+    scope = {
+        "type": "http",
+        "scheme": "http",
+        "client": (de_onde, 50000),
+        "headers": [(b"x-forwarded-for", encaminhado.encode())],
+    }
+    asyncio.run(meio(scope, None, None))
+    assert vistos == [esperado]
 
 
 def test_limite_de_taxa_nao_cresce_sem_fim(monkeypatch):

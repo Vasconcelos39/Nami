@@ -24,6 +24,7 @@ A Nami **não guarda scans**. O conteúdo vem de duas fontes legítimas:
 | 4 | Regras finais do +18, proteções, Docker, HTTPS, deploy | pronta (o Docker ainda não rodou num Orange Pi de verdade) |
 | 5 | Celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página | pronta |
 | 6 | Suporte (tickets em forma de chat), auditoria de segurança, clique que rola no leitor, comando `importar` | pronta |
+| 7 | Autocompletar na busca, aviso de obra que só dá pra ler fora, página por usuário no admin, verificação de idade, IP real atrás do NPM | pronta |
 
 Deploy passo a passo: [DEPLOY.md](DEPLOY.md).
 
@@ -95,6 +96,8 @@ Regra única em `app/servicos/visibilidade.py`:
 | Logado | safe + suggestive |
 | Logado + maioridade confirmada + opt-in +18 | também erotica e pornographic |
 
+Um admin pode bloquear o +18 de qualquer conta; bloqueado, nada adulto aparece.
+
 - Conteúdo adulto só aparece na seção +18 e na busca, nunca em Mangás/Manhwas/HQs.
 - A checagem acontece na listagem, na página da obra, no leitor **e em cada
   imagem** (proxy de páginas e de capas), pras duas fontes (MangaDex e local).
@@ -104,6 +107,24 @@ Regra única em `app/servicos/visibilidade.py`:
 - Ser admin não libera conteúdo adulto: o admin segue as mesmas regras nas
   páginas do site (o painel lista todas as obras locais, pra poder gerenciar).
 - Histórico e favoritos escondem o que a pessoa não pode mais ver (ex.: desligou o +18).
+
+### Verificação de idade (`/conta/maioridade`)
+
+Nenhum site pequeno consegue provar a idade de alguém; a ideia é que ligar o
++18 deixe de ser "marcar uma caixinha" (`app/servicos/maioridade.py`):
+
+- a opção não fica à vista: é um link pequeno ("Verificação de idade") no fim
+  de "Sua conta", que abre uma página própria;
+- pra ligar, a pessoa digita a **senha da conta** (quem pega um celular já
+  logado não liga sozinho) e, na primeira vez, a **data de nascimento**;
+- senha errada ali conta no mesmo limite do login (20 por conta a cada 15 min);
+- uma data de menos de 18 anos **bloqueia o +18 da conta**: tentar de novo com
+  outra data não adianta, só um admin desbloqueia (e aí a pessoa recomeça);
+- a data de nascimento não é guardada, só o dia da confirmação;
+- desligar não pede nada. Ligar de novo pede só a senha.
+
+A migração 0004 zerou as confirmações antigas (feitas pela caixinha): quem
+tinha o +18 ligado passa pela verificação nova.
 
 Tipo da obra, pelo idioma original: japonês → mangá; coreano → manhwa; chinês →
 manhua (aparece na seção Manhwas); qualquer outro → HQ.
@@ -158,7 +179,13 @@ Decisões:
   20 numa mesma conta (vindos de qualquer rede) e 5 contas novas por hora.
   "Rede" é o IP, ou o bloco /64 no IPv6 (cada conexão IPv6 tem milhões de
   endereços; contar um por um deixaria trocar de IP à vontade). Atrás do proxy
-  HTTPS, o uvicorn recebe o IP real do visitante (`--proxy-headers`).
+  HTTPS, o uvicorn recebe o IP real do visitante (`--proxy-headers`), mas só
+  confia no cabeçalho `X-Forwarded-For` quando ele vem das redes internas
+  (`FORWARDED_ALLOW_IPS` no Dockerfile: 10/8, 172.16/12, 192.168/16, fc00::/7).
+  O proxy (NPM, Caddy, cloudflared) acrescenta o IP real no fim de uma lista
+  que o visitante pode preencher; o uvicorn lê de trás pra frente e para no
+  primeiro IP de fora. Com `*` (como era até a 0.6), ele pegava o primeiro da
+  lista, que qualquer um inventa, e dava pra driblar os limites por IP.
   Trade-off do limite por conta: alguém pode bloquear o login de uma conta por
   15 minutos errando a senha dela de propósito; o admin sempre pode entrar
   pelo terminal (`redefinir-senha`).
@@ -230,8 +257,12 @@ que vale é o da fonte, não o que o navegador manda.
 
 - Biblioteca: enviar obra (um ou vários arquivos), editar dados e capa,
   adicionar/renomear/remover capítulos, remover obra (com confirmação).
-- Usuários: tornar/tirar admin, desativar/reativar (desconecta na hora),
-  redefinir senha (gera uma temporária mostrada uma vez só).
+- Usuários: a lista só mostra as contas; clicar numa abre a página dela, com
+  um resumo (último login, aparelhos conectados, +18, favoritos, tickets,
+  reportes) e as ações: tornar/tirar admin, bloquear/desbloquear o +18,
+  desconectar dos aparelhos, redefinir senha (gera uma temporária mostrada uma
+  vez só) e, separado, desativar/reativar (desconecta na hora). As ações que
+  não dá pra desfazer na hora pedem confirmação.
 - Reportes: os avisos de problema mandados pelos usuários, com "marcar como
   resolvido" e "reabrir". O painel mostra quantos estão em aberto.
 - O admin não consegue tirar o próprio acesso nem desativar a própria conta.
@@ -330,6 +361,36 @@ não ficam no banco, então o reporte guarda fonte + id + título.
   (`http://192.168…`) não mostra "Instalar". No iPhone, o app instalado tem
   login separado do Safari (precisa entrar uma vez no app).
 
+## Obras que só dá pra ler fora
+
+Muitas obras licenciadas (ex.: Frieren, Dungeon Meshi) não têm nenhum capítulo
+legível no MangaDex: os que sobraram são só links pro site oficial (MANGA Plus,
+NamiComi, VIZ…). A busca do MangaDex não tem filtro pra isso (o
+`hasAvailableChapters` não tira essas obras), então:
+
+- cada obra que aparece numa listagem é verificada **em segundo plano**
+  (`/manga/{id}/feed?limit=1&includeExternalUrl=0`), a no máximo metade do
+  ritmo permitido, pra não atrasar quem está navegando; a resposta fica 12 h na
+  memória, e abrir a página da obra já ensina de graça;
+- a partir da visita seguinte, o cartão dessas obras ganha a faixa
+  **"Só no site oficial"** e a capa fica mais apagada;
+- na página da obra, um aviso diz que nenhum capítulo daquele idioma dá pra
+  ler aqui e em quais sites eles estão; cada capítulo externo mostra o nome do
+  site ("MANGA Plus ↗") em vez de "site oficial";
+- "Começar a ler" vai pro primeiro capítulo legível, mesmo que seja em outro
+  idioma ("Começar a ler · inglês").
+
+## Autocompletar da busca
+
+Depois de 3 letras e 300 ms sem digitar, `static/js/sugestoes.js` pede
+`/busca/sugestoes` e mostra até 6 obras (a biblioteca local primeiro). A ordem
+"por relevância" do MangaDex põe os derivados na frente ("one pi" trazia One
+Piece Academy antes do One Piece), então as sugestões vêm das mais populares,
+com as que têm o texto em algum título na frente. Setas escolhem, Enter abre,
+Esc fecha (padrão "combobox" de acessibilidade). Limite próprio de 30 pedidos
+por minuto por rede, porque cada pausa na digitação pode gastar uma consulta ao
+MangaDex. As mesmas regras do +18 valem nas sugestões.
+
 ## Obras por página
 
 Seções, busca e biblioteca local mostram 30 obras por página; no fim da lista
@@ -426,7 +487,7 @@ Revisão completa feita na versão 0.6.0. O que foi conferido e o resultado:
 | Acesso de cada usuário | Progresso, favoritos, histórico, reportes e tickets sempre filtrados pela conta logada; +18 checado também em cada imagem. |
 | Formulários | Tamanho máximo em todo campo, validação no servidor, 1 MB por envio. SQL sempre parametrizado (SQLAlchemy). |
 | XSS | Jinja escapa tudo (nenhum filtro `safe`), o JS usa `textContent` (nunca `innerHTML`), CSP sem script inline e links externos só `http(s)` (o `externalUrl` do MangaDex agora também é conferido). |
-| Limite de requisições | Por rede (IPv6 por bloco /64), com memória limitada mesmo sob ataque de muitos IPs; limite próprio pra abrir capítulos. |
+| Limite de requisições | Por rede (IPv6 por bloco /64), com memória limitada mesmo sob ataque de muitos IPs; limite próprio pra abrir capítulos. **Corrigido na 0.7:** atrás do NPM, o IP do visitante podia ser inventado (`--forwarded-allow-ips *`); agora só as redes internas informam o IP. |
 | Endpoints JSON | Exigem login e checam permissão; CSRF barrado por `Sec-Fetch-Site`/`Origin`/`Referer`. |
 | CORS | Desligado (nenhum `Access-Control-Allow-Origin`); há teste. |
 | Cabeçalhos | CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, COOP, CORP, Permissions-Policy. |

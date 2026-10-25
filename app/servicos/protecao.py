@@ -16,8 +16,9 @@ LIMITE_CORPO = 1 * MB  # formulários e JSON; só o envio de .cbz/.cbr pode pass
 
 
 def ip_do_cliente(request: Request) -> str:
-    # Atrás do proxy HTTPS (Caddy/Cloudflare), o uvicorn roda com --proxy-headers
-    # e request.client já traz o IP real de quem acessa, não o do proxy.
+    # Atrás do proxy HTTPS (NPM/Caddy/Cloudflare), o uvicorn roda com
+    # --proxy-headers e request.client já traz o IP real de quem acessa, não o
+    # do proxy. Em quem ele confia pra isso: FORWARDED_ALLOW_IPS, no Dockerfile.
     return request.client.host if request.client else "desconhecido"
 
 

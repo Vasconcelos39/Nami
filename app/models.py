@@ -43,6 +43,8 @@ class Usuario(Base):
     ativo: Mapped[bool] = mapped_column(default=True)
     maioridade_confirmada_em: Mapped[datetime | None]
     mostrar_adulto: Mapped[bool] = mapped_column(default=False)
+    # O admin pode impedir uma conta de ver conteúdo +18 (ex.: alguém que mentiu a idade).
+    adulto_bloqueado: Mapped[bool] = mapped_column(default=False)
     idioma_preferido: Mapped[str] = mapped_column(String(10), default="pt-br")
     criado_em: Mapped[datetime] = mapped_column(default=agora)
 

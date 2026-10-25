@@ -28,7 +28,7 @@
       {% set cap, pag = continuar %}
       <a class="botao" href="/ler/{{ cap.fonte }}/{{ cap.id }}{% if pag > 1 %}#p={{ pag }}{% endif %}">Continuar · {{ cap.rotulo }}{% if pag > 1 %}, pág. {{ pag }}{% endif %}</a>
       {% elif primeiro %}
-      <a class="botao" href="/ler/{{ primeiro.fonte }}/{{ primeiro.id }}">Começar a ler</a>
+      <a class="botao" href="/ler/{{ primeiro.fonte }}/{{ primeiro.id }}">Começar a ler{% if primeiro.idioma != idioma %} · {{ primeiro.idioma | idioma | lower }}{% endif %}</a>
       {% endif %}
       {% if usuario %}
       <form method="post" action="/favoritos/{{ obra.fonte }}/{{ obra.id }}{% if favorito %}/remover{% endif %}">
@@ -77,6 +77,17 @@
     </nav>
     {% endif %}
   </div>
+  {% if capitulos and not (capitulos | selectattr("legivel") | first) %}
+  {# Obra licenciada: os capítulos que sobraram no MangaDex são só links pro site oficial. #}
+  {% set sites = capitulos | selectattr("link_externo") | map(attribute="link_externo") | map("site") | unique | list %}
+  <div class="aviso-cobertura" role="note">
+    <p>
+      <strong>Nenhum capítulo em {{ idioma | idioma | lower }} dá pra ler aqui na Nami.</strong>
+      {% if sites %}Os da lista são publicados oficialmente ({{ sites | join(", ") }}) e abrem no site deles, numa aba nova.
+      {% else %}Eles foram retirados a pedido dos donos dos direitos.{% endif %}
+    </p>
+  </div>
+  {% endif %}
   {% if capitulos and cobertura.tem_aviso %}
   {% set un = "cap." if cobertura.unidade == "cap" else "vol." %}
   {% set nome_idioma = idioma | idioma | lower %}
@@ -117,7 +128,7 @@
       {% endif %}
         <span class="cap-nome">
           {{ c.rotulo }}{% if c.titulo %} — {{ c.titulo }}{% endif %}
-          {% if c.link_externo %}<span class="cap-externo">site oficial ↗</span>{% endif %}
+          {% if c.link_externo %}<span class="cap-externo">{{ c.link_externo | site }} ↗</span>{% endif %}
           {% if leitura and leitura.concluido %}<span class="cap-marca">lido</span>
           {% elif leitura %}<span class="cap-marca cap-marca-andamento">pág. {{ leitura.pagina }}/{{ leitura.total }}</span>{% endif %}
         </span>

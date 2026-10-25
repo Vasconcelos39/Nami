@@ -9,10 +9,18 @@ RUN apt-get update \
 
 # TMPDIR: arquivos temporários (ex.: um .cbz sendo enviado) vão pro disco, em
 # /data/tmp, e não pra memória do Orange Pi.
+# FORWARDED_ALLOW_IPS: quem pode contar ao uvicorn o IP real do visitante (o
+# cabeçalho X-Forwarded-For). Só as redes internas, onde ficam o NPM, o Caddy
+# e o cloudflared. O proxy acrescenta o IP real no fim de uma lista que o
+# visitante pode preencher; assim o uvicorn lê a lista de trás pra frente e
+# para no primeiro IP de fora (com "*", ele pegaria o primeiro da lista, que
+# qualquer um inventa). Dá pra trocar no compose, se o seu proxy estiver em
+# outra rede.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     NAMI_DATA_DIR=/data \
-    TMPDIR=/data/tmp
+    TMPDIR=/data/tmp \
+    FORWARDED_ALLOW_IPS="127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
 
 WORKDIR /app
 
@@ -40,7 +48,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 # - Um worker só: o cache e os limites ficam na memória do processo, e vários
 #   workers multiplicariam as chamadas ao MangaDex.
-# - --proxy-headers: usa o IP real que o Caddy/Cloudflare informa. É seguro
-#   porque a porta 8000 não fica exposta pra fora (só o proxy alcança o app).
+# - --proxy-headers: usa o IP real que o proxy informa (veja FORWARDED_ALLOW_IPS
+#   acima pra saber em quem ele confia).
 # - --no-server-header: não conta pra quem acessa qual servidor está rodando.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-server-header"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--no-server-header"]

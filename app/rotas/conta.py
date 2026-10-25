@@ -12,6 +12,7 @@ from app.dependencias import exigir_login, obter_config, obter_db, usuario_atual
 from app.fontes.base import NaoEncontrado
 from app.models import Usuario, agora
 from app.renderizar import NOMES_IDIOMA, render
+from app.servicos import maioridade
 from app.servicos.auth import (
     COOKIE_SESSAO,
     ErroDeConta,
@@ -33,6 +34,8 @@ MENSAGENS_OK = {
     "preferencias": "Preferências salvas.",
     "senha": "Senha trocada. Os outros aparelhos foram desconectados.",
     "sessoes": "Pronto: a sua conta só continua conectada neste aparelho.",
+    "adulto-ligado": "Conteúdo +18 ligado. A seção +18 aparece no menu.",
+    "adulto-desligado": "Conteúdo +18 desligado.",
 }
 
 
@@ -180,28 +183,57 @@ def conta(
 
 @router.post("/conta/preferencias")
 def salvar_preferencias(
-    request: Request,
     idioma: CampoOpcional = None,
-    mostrar_adulto: CampoOpcional = None,
-    confirmo_maioridade: CampoOpcional = None,
     config: Config = Depends(obter_config),
     usuario: Usuario = Depends(exigir_login),
     db: Session = Depends(obter_db),
 ):
+    # O +18 não fica aqui: tem página própria, com verificação de idade (abaixo).
     if idioma in config.idiomas:
         usuario.idioma_preferido = idioma
-    quer_adulto = mostrar_adulto == "on"
-    if quer_adulto and usuario.maioridade_confirmada_em is None:
-        if confirmo_maioridade != "on":
-            db.rollback()
-            return _pagina_conta(
-                request, config, 400, marcar_adulto=True,  # mantém a caixa marcada
-                erro_preferencias="Pra ver conteúdo +18, confirme que você tem 18 anos ou mais.",
-            )
-        usuario.maioridade_confirmada_em = agora()
-    usuario.mostrar_adulto = quer_adulto
     db.commit()
     return RedirectResponse("/conta?ok=preferencias", status_code=303)
+
+
+# ------------------------------------------------------- verificação de idade
+
+
+@router.get("/conta/maioridade")
+def pagina_maioridade(request: Request, ok: str | None = None, _usuario: Usuario = Depends(exigir_login)):
+    return _pagina_maioridade(request, mensagem=MENSAGENS_OK.get(ok))
+
+
+def _pagina_maioridade(request: Request, status: int = 200, **contexto):
+    return render(request, "maioridade.html", status, hoje=agora().date(), **contexto)
+
+
+@router.post("/conta/maioridade")
+def mudar_maioridade(
+    request: Request,
+    acao: Campo,
+    senha: CampoOpcional = None,
+    nascimento: CampoOpcional = None,
+    usuario: Usuario = Depends(exigir_login),
+    db: Session = Depends(obter_db),
+):
+    if acao == "desligar":
+        maioridade.desligar(db, usuario)
+        return RedirectResponse("/conta/maioridade?ok=adulto-desligado", status_code=303)
+    # Senha errada aqui conta no mesmo limite do login: não vira um jeito de
+    # testar senhas de quem deixou a conta aberta.
+    limite, chave = request.app.state.limite_login_conta, usuario.username.lower()
+    if limite.bloqueado(chave):
+        return _pagina_maioridade(
+            request, 429, erro="Muitas tentativas com a senha errada. Espere 15 minutos e tente de novo."
+        )
+    try:
+        maioridade.ligar(db, usuario, senha, nascimento)
+    except maioridade.SenhaErrada as erro:
+        limite.registrar(chave)
+        return _pagina_maioridade(request, 400, erro=str(erro))
+    except maioridade.ErroDeVerificacao as erro:
+        return _pagina_maioridade(request, 400, erro=str(erro))
+    return RedirectResponse("/conta/maioridade?ok=adulto-ligado", status_code=303)
 
 
 @router.post("/conta/senha")

@@ -62,6 +62,7 @@ def criar_app(
                 "Depois de criar as contas que você quer, use NAMI_CADASTRO_ABERTO=false."
             )
         yield
+        app.state.fontes.obter("mangadex").encerrar()
         app.state.engine.dispose()
 
     # Sem /docs: a Nami é um site, não uma API pública.
@@ -93,6 +94,8 @@ def criar_app(
     # Abrir um capítulo do MangaDex gasta uma das ~35 consultas por minuto que o
     # servidor inteiro tem. Este limite impede que uma pessoa só gaste todas.
     limite_capitulos = LimiteDeTaxa(12) if config.limite_por_minuto else None
+    # O autocompletar da busca também gasta consultas ao MangaDex a cada pausa na digitação.
+    limite_sugestoes = LimiteDeTaxa(30) if config.limite_por_minuto else None
     cabecalhos = cabecalhos_de_seguranca(config)
 
     def _recusar(texto: str, status: int, **extra: str) -> PlainTextResponse:
@@ -110,6 +113,8 @@ def criar_app(
             limites = [limite_imagens if caminho.startswith(("/img/", "/capa/")) else limite_paginas]
             if caminho.startswith("/ler/"):
                 limites.append(limite_capitulos)
+            elif caminho == "/busca/sugestoes":
+                limites.append(limite_sugestoes)
             for limite in filter(None, limites):
                 if espera := limite.esperar(chave):
                     return _recusar(
@@ -159,7 +164,8 @@ def criar_app(
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon():
         # Navegadores pedem /favicon.ico na raiz mesmo com o <link rel="icon"> na página.
-        return FileResponse(PASTA_APP / "static" / "marca" / "favicon.ico", headers={"Cache-Control": "public, max-age=604800"})
+        # no-cache: o navegador confere antes de usar, então um ícone novo aparece logo.
+        return FileResponse(PASTA_APP / "static" / "marca" / "favicon.ico", headers={"Cache-Control": "no-cache"})
 
     @app.get("/sw.js", include_in_schema=False)
     def service_worker():

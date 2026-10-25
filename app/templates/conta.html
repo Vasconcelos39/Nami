@@ -21,7 +21,6 @@
 
   <form class="cartao-bloco" method="post" action="/conta/preferencias">
     <h2>Preferências</h2>
-    {% if erro_preferencias %}<p class="alerta alerta-erro" role="alert">{{ erro_preferencias }}</p>{% endif %}
     <div class="campo">
       <label for="idioma">Idioma preferido dos capítulos</label>
       <select id="idioma" name="idioma">
@@ -30,26 +29,6 @@
         {% endfor %}
       </select>
     </div>
-
-    <fieldset class="campo">
-      <legend>Conteúdo +18</legend>
-      <p class="dica">
-        Obras eróticas e pornográficas ficam escondidas por padrão. Se você ativar, elas aparecem
-        numa seção +18 separada e na busca, nunca misturadas em Mangás, Manhwas ou HQs.
-      </p>
-      <label class="marcar">
-        <input type="checkbox" name="mostrar_adulto"{% if usuario.mostrar_adulto or marcar_adulto %} checked{% endif %}>
-        <span>Mostrar conteúdo +18</span>
-      </label>
-      {% if usuario.maioridade_confirmada_em %}
-      <p class="dica">Maioridade confirmada em {{ usuario.maioridade_confirmada_em | data }}.</p>
-      {% else %}
-      <label class="marcar">
-        <input type="checkbox" name="confirmo_maioridade">
-        <span>Confirmo que tenho 18 anos ou mais</span>
-      </label>
-      {% endif %}
-    </fieldset>
     <button type="submit" class="botao">Salvar preferências</button>
   </form>
 
@@ -80,5 +59,10 @@
     </p>
     <button type="submit" class="botao botao-secundario">Sair de todos os outros aparelhos</button>
   </form>
+
+  {# Discreto de propósito: o +18 não fica à vista de quem só passa pela página. #}
+  <p class="rodape-conta">
+    <a href="/conta/maioridade">Verificação de idade</a>{% if usuario.mostrar_adulto and usuario.maioridade_confirmada_em and not usuario.adulto_bloqueado %} · +18 ligado{% endif %}
+  </p>
 </div>
 {% endblock %}

@@ -11,11 +11,12 @@ from app.servicos.visibilidade import (
 )
 
 
-def usuario(maioridade=False, adulto=False, ativo=True):
+def usuario(maioridade=False, adulto=False, ativo=True, bloqueado=False):
     return SimpleNamespace(
         ativo=ativo,
         maioridade_confirmada_em=datetime(2026, 1, 1) if maioridade else None,
         mostrar_adulto=adulto,
+        adulto_bloqueado=bloqueado,
     )
 
 
@@ -38,6 +39,10 @@ def test_maioridade_sem_opt_in_nao_libera_adulto():
 
 def test_maioridade_e_opt_in_liberam_tudo():
     assert classificacoes_permitidas(usuario(maioridade=True, adulto=True)) == set(C)
+
+
+def test_bloqueio_do_admin_vence_o_opt_in():
+    assert classificacoes_permitidas(usuario(maioridade=True, adulto=True, bloqueado=True)) == {C.SAFE, C.SUGGESTIVE}
 
 
 def test_conta_desativada_volta_a_ser_visitante():

@@ -18,7 +18,8 @@ A Nami não guarda scans: o catálogo e as páginas vêm da API oficial do
   instalar como app na tela inicial (Android e iPhone).
 - **Contas:** continuar de onde parou, histórico, favoritos, idioma preferido.
 - **Classificação etária:** visitante vê só conteúdo livre, quem tem conta vê
-  também o sugestivo, e o +18 só aparece pra quem ativa e confirma a maioridade.
+  também o sugestivo, e o +18 só aparece pra quem passa pela verificação de
+  idade (data de nascimento + senha da conta).
 - **Leitura oficial:** com dados do [AniList](https://anilist.co), a página da
   obra avisa quando faltam capítulos (licenciamento, tradução parada) e mostra
   onde ler ou comprar oficialmente.
@@ -44,6 +45,7 @@ a cada atualização).
 - [x] **Fase 4:** regras finais do +18, limite de requisições, cabeçalhos de segurança, Docker e guia de deploy
 - [x] **Fase 5:** celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página
 - [x] **Fase 6:** suporte em forma de chat, auditoria de segurança, clique que rola no leitor e importação pelo terminal
+- [x] **Fase 7:** autocompletar na busca, aviso de obra que só dá pra ler no site oficial, página por usuário no admin, verificação de idade e IP real atrás do proxy
 
 ## Rodar no PC (Windows)
 

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block titulo %}Verificação de idade · Nami{% endblock %}
+{% block conteudo %}
+<div class="conta">
+  <div class="cabeca-bloco"><h1>Verificação de idade</h1><a class="suave" href="/conta">← Sua conta</a></div>
+  {% if mensagem %}<p class="alerta alerta-ok" role="status">{{ mensagem }}</p>{% endif %}
+  {% if erro %}<p class="alerta alerta-erro" role="alert">{{ erro }}</p>{% endif %}
+
+  {% if usuario.adulto_bloqueado %}
+  <section class="cartao-bloco">
+    <h2>Conteúdo +18 bloqueado</h2>
+    <p>O conteúdo +18 está bloqueado nesta conta. Se você acha que é engano, <a href="/suporte/novo">fale com o suporte</a>.</p>
+  </section>
+
+  {% elif usuario.mostrar_adulto and usuario.maioridade_confirmada_em %}
+  <form class="cartao-bloco" method="post" action="/conta/maioridade">
+    <h2>Conteúdo +18 ligado</h2>
+    <p class="dica">
+      Idade confirmada em {{ usuario.maioridade_confirmada_em | data }}. As obras eróticas e pornográficas
+      aparecem só na seção +18 e na busca, nunca misturadas em Mangás, Manhwas ou HQs.
+    </p>
+    <input type="hidden" name="acao" value="desligar">
+    <button type="submit" class="botao botao-secundario">Desligar o +18</button>
+  </form>
+
+  {% else %}
+  <form class="cartao-bloco" method="post" action="/conta/maioridade">
+    <h2>Ligar o conteúdo +18</h2>
+    <p class="dica">
+      Obras eróticas e pornográficas ficam escondidas por padrão. Ligando, elas aparecem numa seção +18
+      separada e na busca, nunca misturadas em Mangás, Manhwas ou HQs.
+    </p>
+    <input type="hidden" name="acao" value="ligar">
+    {% if not usuario.maioridade_confirmada_em %}
+    <div class="campo">
+      <label for="nascimento">Data de nascimento</label>
+      <input id="nascimento" name="nascimento" type="date" min="1900-01-01" max="{{ hoje.isoformat() }}" required>
+      <p class="dica">
+        A data não fica guardada: a Nami anota só o dia em que a sua idade foi confirmada.
+        <strong>Se ela indicar menos de 18 anos, o +18 fica bloqueado nesta conta</strong> e só um admin desbloqueia.
+      </p>
+    </div>
+    {% endif %}
+    <div class="campo">
+      <label for="senha">Senha da conta</label>
+      <input id="senha" name="senha" type="password" autocomplete="current-password" maxlength="128" required>
+      <p class="dica">Pra ter certeza de que é você quem está pedindo, e não alguém com o seu celular na mão.</p>
+    </div>
+    <button type="submit" class="botao">Confirmar e ligar o +18</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

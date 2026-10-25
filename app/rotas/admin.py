@@ -20,9 +20,9 @@ from app.dominio import Classificacao, Filtro, Tipo
 from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.local import FONTE_ID
 from app.fontes.registro import Registro
-from app.models import Capitulo, Obra, Reporte, Sessao, Usuario
+from app.models import Capitulo, Favorito, Obra, Progresso, Reporte, Sessao, Ticket, Usuario, agora
 from app.renderizar import NOMES_IDIOMA, NOMES_STATUS, render
-from app.servicos import acervo, reportes, suporte
+from app.servicos import acervo, maioridade, reportes, suporte
 from app.servicos.auth import gerar_hash
 from app.servicos.biblioteca import ErroDeImportacao, salvar_envio
 
@@ -53,6 +53,9 @@ MENSAGENS = {
     "rebaixado": "Essa conta deixou de ser admin.",
     "desativado": "Conta desativada. A pessoa foi desconectada.",
     "reativado": "Conta reativada.",
+    "desconectado": "A conta foi desconectada de todos os aparelhos.",
+    "adulto-bloqueado": "+18 bloqueado nesta conta. A pessoa não consegue ligar de novo.",
+    "adulto-desbloqueado": "+18 desbloqueado. Pra ligar, a pessoa passa pela verificação de idade de novo.",
     "resolvido": "Reporte marcado como resolvido.",
     "reaberto": "Reporte reaberto.",
 }
@@ -451,14 +454,40 @@ def _dados_anilist(ficha: FichaAniList) -> dict:
 
 @router.get("/usuarios")
 def usuarios(
-    request: Request, ok: str | None = None, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
+    request: Request, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
 ):
-    return _pagina_usuarios(request, db, mensagem=MENSAGENS.get(ok))
-
-
-def _pagina_usuarios(request: Request, db: Session, status: int = 200, **extra):
+    """Só a lista. As ações ficam na página de cada conta, pra ninguém clicar sem querer."""
     lista = db.scalars(select(Usuario).order_by(Usuario.criado_em)).all()
-    return render(request, "admin/usuarios.html", status, lista=lista, **extra)
+    return render(request, "admin/usuarios.html", lista=lista)
+
+
+@router.get("/usuarios/{usuario_id}")
+def usuario(
+    usuario_id: int,
+    request: Request,
+    ok: str | None = None,
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    return _pagina_usuario(request, db, _alvo(db, usuario_id), mensagem=MENSAGENS.get(ok))
+
+
+def _pagina_usuario(request: Request, db: Session, alvo: Usuario, status: int = 200, **extra):
+    def contar(modelo) -> int:
+        return db.scalar(select(func.count()).select_from(modelo).where(modelo.usuario_id == alvo.id))
+
+    logins = db.scalars(
+        select(Sessao.criada_em).where(Sessao.usuario_id == alvo.id, Sessao.expira_em > agora())
+    ).all()
+    resumo = {
+        "aparelhos": len(logins),
+        "ultimo_login": max(logins, default=None),
+        "favoritos": contar(Favorito),
+        "capitulos": contar(Progresso),
+        "tickets": contar(Ticket),
+        "reportes": contar(Reporte),
+    }
+    return render(request, "admin/usuario.html", status, alvo=alvo, resumo=resumo, **extra)
 
 
 def _alvo(db: Session, usuario_id: int) -> Usuario:
@@ -466,6 +495,10 @@ def _alvo(db: Session, usuario_id: int) -> Usuario:
     if alvo is None:
         raise NaoEncontrado(str(usuario_id))
     return alvo
+
+
+def _voltar(alvo: Usuario, ok: str) -> RedirectResponse:
+    return RedirectResponse(f"/admin/usuarios/{alvo.id}?ok={ok}", status_code=303)
 
 
 def _desconectar(db: Session, usuario: Usuario) -> None:
@@ -482,10 +515,10 @@ def mudar_admin(
 ):
     alvo = _alvo(db, usuario_id)
     if alvo.id == admin.id and acao == "rebaixar":
-        return _pagina_usuarios(request, db, 400, erro="Você não pode tirar o seu próprio acesso de admin.")
+        return _pagina_usuario(request, db, alvo, 400, erro="Você não pode tirar o seu próprio acesso de admin.")
     alvo.is_admin = acao == "promover"
     db.commit()
-    return RedirectResponse(f"/admin/usuarios?ok={'promovido' if alvo.is_admin else 'rebaixado'}", status_code=303)
+    return _voltar(alvo, "promovido" if alvo.is_admin else "rebaixado")
 
 
 @router.post("/usuarios/{usuario_id}/ativo")
@@ -498,12 +531,34 @@ def mudar_ativo(
 ):
     alvo = _alvo(db, usuario_id)
     if alvo.id == admin.id and acao == "desativar":
-        return _pagina_usuarios(request, db, 400, erro="Você não pode desativar a sua própria conta.")
+        return _pagina_usuario(request, db, alvo, 400, erro="Você não pode desativar a sua própria conta.")
     alvo.ativo = acao != "desativar"
     if not alvo.ativo:
         _desconectar(db, alvo)
     db.commit()
-    return RedirectResponse(f"/admin/usuarios?ok={'reativado' if alvo.ativo else 'desativado'}", status_code=303)
+    return _voltar(alvo, "reativado" if alvo.ativo else "desativado")
+
+
+@router.post("/usuarios/{usuario_id}/adulto")
+def mudar_adulto(
+    usuario_id: int, acao: Texto, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
+):
+    """Bloqueia o +18 de uma conta (ex.: alguém que mentiu a idade) ou desbloqueia."""
+    alvo = _alvo(db, usuario_id)
+    if acao == "bloquear":
+        maioridade.bloquear(db, alvo)
+    else:
+        maioridade.desbloquear(db, alvo)
+    return _voltar(alvo, "adulto-bloqueado" if alvo.adulto_bloqueado else "adulto-desbloqueado")
+
+
+@router.post("/usuarios/{usuario_id}/sessoes")
+def desconectar(usuario_id: int, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)):
+    """Desconecta a conta de todos os aparelhos (a senha continua a mesma)."""
+    alvo = _alvo(db, usuario_id)
+    _desconectar(db, alvo)
+    db.commit()
+    return _voltar(alvo, "desconectado")
 
 
 @router.post("/usuarios/{usuario_id}/senha")
@@ -517,4 +572,4 @@ def redefinir_senha(
     _desconectar(db, alvo)
     db.commit()
     # Mostrada direto na página (não vai pra URL nem fica salva em lugar nenhum).
-    return _pagina_usuarios(request, db, senha_temporaria=(alvo.username, temporaria))
+    return _pagina_usuario(request, db, alvo, senha_temporaria=temporaria)

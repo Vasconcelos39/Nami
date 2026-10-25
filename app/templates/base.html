@@ -7,8 +7,10 @@
      afasta o conteúdo das áreas do relógio e da barra de gestos (safe-area). #}
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block titulo %}Nami{% endblock %}</title>
-  <link rel="icon" href="/static/marca/favicon.ico" sizes="any">
-  <link rel="icon" href="/static/marca/nami-favicon-32.png" type="image/png" sizes="32x32">
+  {# Ícone da aba: a onda da marca (marca/nami-onda.png). O ?v= faz o navegador trocar o ícone guardado. #}
+  <link rel="icon" href="/static/marca/favicon.ico?v={{ versao }}" sizes="any">
+  <link rel="icon" href="/static/marca/nami-favicon-32.png?v={{ versao }}" type="image/png" sizes="32x32">
+  <link rel="icon" href="/static/marca/nami-onda.png?v={{ versao }}" type="image/png" sizes="96x96">
   <link rel="apple-touch-icon" href="/static/marca/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <meta name="theme-color" content="{% block cor_tema %}#0d182c{% endblock %}">
@@ -19,6 +21,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="/static/css/nami.css?v={{ versao }}">
   <script src="/static/js/nami.js?v={{ versao }}" defer></script>
+  <script src="/static/js/sugestoes.js?v={{ versao }}" defer></script>
 </head>
 <body class="{% block classe_body %}{% endblock %}">
 {% block topo %}

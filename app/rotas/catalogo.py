@@ -10,7 +10,7 @@ from app.catalogos.anilist import AniList
 from app.config import Config
 from app.dependencias import obter_anilist, obter_config, obter_db, obter_fontes, usuario_atual
 from app.dominio import Filtro, Ordem, navegacao
-from app.fontes.base import NaoEncontrado
+from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.registro import Registro
 from app.models import Usuario
 from app.renderizar import OPCOES_POR_PAGINA, render
@@ -31,6 +31,8 @@ FONTES_DAS_LISTAGENS = (MANGADEX, LOCAL)  # ordem das abas nas seções
 POR_PAGINA = OPCOES_POR_PAGINA[0]
 COOKIE_POR_PAGINA = "nami_por_pagina"  # a escolha fica lembrada no navegador
 NumeroPagina = Annotated[int, Query(ge=1, le=1000)]
+SUGESTOES = 6  # obras no autocompletar da busca
+MINIMO_SUGESTAO = 3  # letras digitadas antes de sugerir algo
 
 
 def _idiomas_do_usuario(config: Config, usuario: Usuario | None) -> list[str]:
@@ -167,6 +169,50 @@ def busca(
     return _lembrar_por_pagina(resposta, config, por_pagina, nova)
 
 
+@router.get("/busca/sugestoes")
+def sugestoes(
+    q: Annotated[str, Query(max_length=200)] = "",
+    config: Config = Depends(obter_config),
+    fontes: Registro = Depends(obter_fontes),
+    usuario: Usuario | None = Depends(usuario_atual),
+):
+    """Autocompletar da busca (static/js/sugestoes.js): obras que combinam com o
+    que a pessoa já digitou. A biblioteca local vem primeiro."""
+    termo = q.strip()
+    if len(termo) < MINIMO_SUGESTAO:
+        return {"itens": []}
+    filtro = Filtro(classificacoes_permitidas(usuario), termo=termo, idiomas=tuple(config.idiomas))
+    obras = list(fontes.obter(LOCAL).buscar(filtro, 1, SUGESTOES).obras)
+    if len(obras) < SUGESTOES:
+        # No MangaDex, a "relevância" põe os derivados na frente ("one pi" traz
+        # One Piece Academy antes do One Piece). Pede as mais populares e passa na
+        # frente as que têm o texto digitado em algum título.
+        try:
+            populares = fontes.obter(MANGADEX).buscar(replace(filtro, relevancia=False), 1, SUGESTOES * 2).obras
+        except FonteIndisponivel:
+            populares = []  # fica só com a biblioteca; a busca normal explica o erro, se ele continuar
+        procurado = termo.casefold()
+        obras += sorted(
+            populares,
+            key=lambda o: not any(procurado in t.casefold() for t in (o.titulo, *o.titulos_alternativos)),
+        )
+    return {
+        "itens": [
+            {
+                "titulo": o.titulo,
+                "url": f"/obra/{o.fonte}/{o.id}",
+                "capa": o.capa_url or "/static/sem-capa.svg",
+                "info": " · ".join(
+                    filter(None, [o.tipo.rotulo, str(o.ano) if o.ano else "", "biblioteca" if o.fonte == LOCAL else ""])
+                ),
+                "adulta": o.classificacao.adulta,
+                "so_fora": o.so_fora,
+            }
+            for o in obras[:SUGESTOES]
+        ]
+    }
+
+
 @router.get("/obra/{fonte_id}/{obra_id}")
 def obra(
     fonte_id: str,
@@ -191,7 +237,10 @@ def obra(
     if idioma not in por_idioma:
         idioma = next(iter(por_idioma), None)
     lista = por_idioma.get(idioma, [])
-    primeiro = next((c for c in lista if c.legivel), None)
+    # "Começar a ler": no idioma escolhido ou, se nele nada dá pra ler aqui, no próximo.
+    primeiro = next(
+        (c for i in [idioma, *por_idioma] for c in por_idioma.get(i, []) if c.legivel), None
+    )
 
     # Progresso de quem está logado: marca os capítulos lidos e monta o "Continuar".
     leituras, favorito, continuar, em_dia = {}, False, None, False

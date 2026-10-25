@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 from collections.abc import Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 import httpx
@@ -71,6 +72,11 @@ TTL_FEED = 10 * 60
 TTL_CAPITULO = 30 * 60
 TTL_SERVIDOR = 10 * 60  # o MangaDex garante a URL das páginas por pelo menos 15 min
 TTL_VISTAS = 24 * 60 * 60
+TTL_LEGIVEL = 12 * 60 * 60
+
+# Obras esperando a verificação "tem capítulo pra ler aqui?". Acima disso, as
+# novas ficam pra próxima vez que aparecerem numa listagem.
+MAX_NA_FILA = 300
 
 
 @dataclass(frozen=True)
@@ -93,6 +99,7 @@ class MangaDex:
         http: httpx.Client | None = None,
         chamadas_por_segundo: float = 4.0,
         executor: Executor | None = None,
+        verificador: Executor | None = None,
     ):
         self.config = config
         self.http = http or httpx.Client(timeout=httpx.Timeout(20.0, connect=10.0))
@@ -107,6 +114,17 @@ class MangaDex:
         self._janela_servidor = JanelaLimite(limite=35, janela=60)  # o limite deles é 40/min
         # Os reports ao MangaDex@Home rodam em segundo plano pra não atrasar a imagem.
         self._executor = executor or ThreadPoolExecutor(max_workers=2, thread_name_prefix="md-report")
+        # Obras licenciadas costumam ter só capítulos "externos" (links pro site
+        # oficial). A busca do MangaDex não tem filtro pra isso, então a Nami
+        # descobre aos poucos, em segundo plano, e marca o cartão dessas obras.
+        # A verificação anda a no máximo metade do ritmo permitido, pra sobrar
+        # fôlego pras chamadas de quem está navegando.
+        self._legiveis = CacheTTL(maximo=50_000)  # obra -> tem capítulo pra ler aqui?
+        self._na_fila: set[str] = set()
+        self._lock_fila = threading.Lock()
+        self._ritmo_verificacao = Limitador(chamadas_por_segundo / 2)
+        self._verificador = verificador or ThreadPoolExecutor(max_workers=1, thread_name_prefix="md-legivel")
+        self._encerrando = threading.Event()
 
     # ------------------------------------------------------------------ busca
 
@@ -126,7 +144,9 @@ class MangaDex:
         params += [("availableTranslatedLanguage[]", idioma) for idioma in filtro.idiomas]
         params += _params_de_tipo(filtro.tipos)
         if filtro.termo:
-            params += [("title", filtro.termo), ("order[relevance]", "desc")]
+            params.append(("title", filtro.termo))
+        if filtro.termo and filtro.relevancia:
+            params.append(("order[relevance]", "desc"))
         else:
             params.append((f"order[{_ORDEM_API[filtro.ordem]}]", "desc"))
 
@@ -136,7 +156,7 @@ class MangaDex:
         # O total é limitado a um múltiplo de por_pagina que a API ainda aceita paginar.
         maximo = LIMITE_RESULTADOS - LIMITE_RESULTADOS % por_pagina
         return PaginaDeResultados(
-            obras=[self._converter_obra(m) for m in dados["data"]],
+            obras=[self._marcar_so_fora(self._converter_obra(m)) for m in dados["data"]],
             total=min(dados["total"], maximo),
             pagina=pagina,
             por_pagina=por_pagina,
@@ -190,7 +210,51 @@ class MangaDex:
 
         brutos = self.cache.obter_ou_calcular(("feed", obra_id, idiomas), TTL_FEED, baixar)
         capitulos = [self._converter_capitulo(c, obra_id) for c in brutos]
+        if idiomas == tuple(self.config.idiomas):  # já que baixou, fica sabendo de graça
+            self._legiveis.guardar(obra_id, any(c.legivel for c in capitulos), TTL_LEGIVEL)
         return sorted(capitulos, key=lambda c: (c.ordem, c.idioma))
+
+    # ------------------------------------------- obras que só dá pra ler fora
+
+    def _marcar_so_fora(self, obra: Obra) -> Obra:
+        legivel = self._legiveis.obter(obra.id)
+        if legivel is None:
+            self._agendar_verificacao(obra.id)
+            return obra
+        return obra if legivel else replace(obra, so_fora=True)
+
+    def _agendar_verificacao(self, obra_id: str) -> None:
+        with self._lock_fila:
+            if obra_id in self._na_fila or len(self._na_fila) >= MAX_NA_FILA:
+                return
+            self._na_fila.add(obra_id)
+        self._verificador.submit(self._verificar_legivel, obra_id)
+
+    def _verificar_legivel(self, obra_id: str) -> None:
+        try:
+            if self._encerrando.is_set() or self._legiveis.obter(obra_id) is not None:
+                return
+            self._ritmo_verificacao.aguardar()
+            dados = self._get(
+                f"/manga/{obra_id}/feed",
+                [
+                    ("limit", 1),
+                    ("includeExternalUrl", 0),
+                    ("includeUnavailable", 0),
+                    *[("translatedLanguage[]", idioma) for idioma in self.config.idiomas],
+                    *_TODAS_CLASSIFICACOES,
+                ],
+            )
+            self._legiveis.guardar(obra_id, dados["total"] > 0, TTL_LEGIVEL)
+        except Exception:  # é só um aviso no cartão: se falhar, tenta de novo noutra listagem
+            log.debug("Não deu pra ver se %s tem capítulos legíveis", obra_id, exc_info=True)
+        finally:
+            with self._lock_fila:
+                self._na_fila.discard(obra_id)
+
+    def encerrar(self) -> None:
+        """O servidor vai parar: descarta as verificações que ainda estão na fila."""
+        self._encerrando.set()
 
     def capitulo(self, capitulo_id: str) -> tuple[Obra, Capitulo]:
         _validar_id(capitulo_id)

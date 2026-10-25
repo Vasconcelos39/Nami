@@ -5,6 +5,9 @@ Toda decisão sobre classificação etária passa por este arquivo:
     visitante                                    -> safe
     logado                                       -> safe + suggestive
     logado + maioridade confirmada + opt-in +18  -> também erotica e pornographic
+    (a não ser que um admin tenha bloqueado o +18 da conta)
+
+A maioridade é confirmada em /conta/maioridade (servicos/maioridade.py).
 
 Conteúdo adulto só aparece na seção +18 e na busca, nunca misturado em
 Mangás/Manhwas/HQs.
@@ -39,7 +42,11 @@ def classificacoes_permitidas(usuario: Usuario | None) -> frozenset[Classificaca
     if usuario is None or not usuario.ativo:
         return frozenset({Classificacao.SAFE})
     permitidas = {Classificacao.SAFE, Classificacao.SUGGESTIVE}
-    if usuario.maioridade_confirmada_em is not None and usuario.mostrar_adulto:
+    if (
+        usuario.maioridade_confirmada_em is not None
+        and usuario.mostrar_adulto
+        and not usuario.adulto_bloqueado
+    ):
         permitidas |= {Classificacao.EROTICA, Classificacao.PORNOGRAPHIC}
     return frozenset(permitidas)
 

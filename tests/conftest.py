@@ -23,6 +23,13 @@ class ExecutorImediato:
         funcao(*args, **kwargs)
 
 
+class ExecutorParado:
+    """Não roda nada: pra tarefas de segundo plano que os testes comuns não esperam."""
+
+    def submit(self, funcao, *args, **kwargs):
+        pass
+
+
 class ApiFalsa:
     def __init__(self):
         self._respostas: dict[tuple[str, str], list[Callable[[], httpx.Response]]] = {}
@@ -73,6 +80,7 @@ def mangadex(config, api):
         http=httpx.Client(transport=httpx.MockTransport(api)),
         chamadas_por_segundo=1000,  # sem esperas nos testes
         executor=ExecutorImediato(),
+        verificador=ExecutorParado(),  # tem capítulo pra ler? (test_so_fora.py liga isso)
     )
 
 

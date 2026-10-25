@@ -73,6 +73,7 @@ class Filtro:
     termo: str = ""
     ordem: Ordem = Ordem.POPULARES
     idiomas: tuple[str, ...] = ("pt-br", "en")
+    relevancia: bool = True  # com termo: ordena pela relevância da busca, e não por `ordem`
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,7 @@ class Obra:
     anilist_id: int | None = None  # a mesma obra no AniList (catálogo de metadados)
     links_oficiais: tuple[LinkOficial, ...] = ()
     ultimo_capitulo: str | None = None  # número do capítulo final, quando a obra já terminou
+    so_fora: bool = False  # nenhum capítulo pra ler na Nami: só links pros sites oficiais
 
 
 @dataclass(frozen=True)
@@ -187,6 +189,7 @@ class PaginaDeResultados:
 # Nomes bonitos pros sites oficiais mais comuns; os outros aparecem pelo domínio.
 _NOMES_DE_SITES = {
     "mangaplus.shueisha.co.jp": "MANGA Plus",
+    "namicomi.com": "NamiComi",
     "webtoons.com": "WEBTOON",
     "viz.com": "VIZ",
     "yenpress.com": "Yen Press",

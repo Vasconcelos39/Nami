@@ -52,9 +52,11 @@ def sair(cliente):
     assert cliente.post("/sair", follow_redirects=False).status_code == 303
 
 
-def ligar_adulto(cliente):
+def ligar_adulto(cliente, senha=SENHA, nascimento="1990-05-10"):
     resposta = cliente.post(
-        "/conta/preferencias", data={"mostrar_adulto": "on", "confirmo_maioridade": "on"}, follow_redirects=False
+        "/conta/maioridade",
+        data={"acao": "ligar", "senha": senha, "nascimento": nascimento},
+        follow_redirects=False,
     )
     assert resposta.status_code == 303
 

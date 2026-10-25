@@ -167,13 +167,31 @@ def test_logado_ve_tambem_conteudo_sugestivo(cliente, api):
     assert api.chamadas[-1].url.params.get_list("contentRating[]") == ["safe", "suggestive"]
 
 
-def test_18_exige_confirmar_a_maioridade(cliente):
+def _verificar(cliente, **dados):
+    return cliente.post("/conta/maioridade", data={"acao": "ligar", **dados}, follow_redirects=False)
+
+
+def test_18_nao_liga_mais_pelas_preferencias(cliente):
     cadastrar(cliente)
-    resposta = cliente.post("/conta/preferencias", data={"mostrar_adulto": "on"})
-    assert resposta.status_code == 400
-    assert "18 anos" in resposta.text
-    assert 'name="mostrar_adulto" checked' in resposta.text  # a escolha não se perde
+    conta = cliente.get("/conta").text
+    assert 'name="mostrar_adulto"' not in conta
+    assert 'href="/conta/maioridade"' in conta  # só um link discreto no fim da página
+    cliente.post("/conta/preferencias", data={"mostrar_adulto": "on", "confirmo_maioridade": "on"})
     assert cliente.get("/secao/adulto").status_code == 404
+
+
+def test_18_exige_senha_e_data_de_nascimento(cliente):
+    cadastrar(cliente)
+    pagina = cliente.get("/conta/maioridade")
+    assert 'name="nascimento"' in pagina.text and 'name="senha"' in pagina.text
+
+    errada = _verificar(cliente, senha="outra-senha-qualquer", nascimento="1990-05-10")
+    assert errada.status_code == 400 and "Senha incorreta" in errada.text
+    sem_data = _verificar(cliente, senha=SENHA)
+    assert sem_data.status_code == 400 and "data de nascimento" in sem_data.text
+    assert cliente.get("/secao/adulto").status_code == 404
+    (usuario,) = consultar(cliente, select(Usuario))
+    assert usuario.maioridade_confirmada_em is None and not usuario.mostrar_adulto
 
 
 def test_18_ligado_libera_a_secao_e_pode_ser_desligado(cliente, api):
@@ -185,8 +203,36 @@ def test_18_ligado_libera_a_secao_e_pode_ser_desligado(cliente, api):
     assert secao.status_code == 200
     assert api.chamadas[-1].url.params.get_list("contentRating[]") == ["erotica", "pornographic"]
     assert 'href="/secao/adulto"' in secao.text  # aparece no menu
+    assert "+18 ligado" in cliente.get("/conta").text
 
-    cliente.post("/conta/preferencias", data={})  # desmarcou: some de novo, sem pedir confirmação
+    desligar = cliente.post("/conta/maioridade", data={"acao": "desligar"}, follow_redirects=False)
+    assert desligar.status_code == 303  # desligar não pede senha
     assert cliente.get("/secao/adulto").status_code == 404
     (usuario,) = consultar(cliente, select(Usuario))
     assert usuario.maioridade_confirmada_em is not None  # a confirmação fica registrada
+
+    # Pra ligar de novo, só a senha: a data já foi confirmada.
+    assert 'name="nascimento"' not in cliente.get("/conta/maioridade").text
+    assert _verificar(cliente, senha=SENHA).status_code == 303
+    assert cliente.get("/secao/adulto").status_code == 200
+
+
+def test_18_data_de_menor_bloqueia_a_conta(cliente):
+    cadastrar(cliente)
+    menor = _verificar(cliente, senha=SENHA, nascimento="2015-03-01")
+    assert menor.status_code == 400 and "menos de 18 anos" in menor.text
+    # Trocar a data não adianta: só um admin desbloqueia.
+    de_novo = _verificar(cliente, senha=SENHA, nascimento="1980-01-01")
+    assert de_novo.status_code == 400 and "bloqueado" in de_novo.text
+    assert cliente.get("/secao/adulto").status_code == 404
+    assert "fale com o suporte" in cliente.get("/conta/maioridade").text
+    (usuario,) = consultar(cliente, select(Usuario))
+    assert usuario.adulto_bloqueado
+
+
+def test_18_senha_errada_conta_no_limite_do_login(cliente):
+    cadastrar(cliente)
+    cliente.app.state.limite_login_conta.maximo = 2
+    for _ in range(2):
+        assert _verificar(cliente, senha="errada-errada", nascimento="1990-05-10").status_code == 400
+    assert _verificar(cliente, senha=SENHA, nascimento="1990-05-10").status_code == 429

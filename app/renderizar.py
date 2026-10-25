@@ -8,6 +8,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app import __version__
+from app.dominio import nome_do_site
 from app.servicos import suporte
 from app.servicos.visibilidade import secoes_visiveis
 
@@ -66,6 +67,7 @@ templates.env.filters["status"] = lambda status: NOMES_STATUS.get(status, status
 templates.env.filters["data"] = lambda d: d.strftime("%d/%m/%Y") if isinstance(d, datetime) else ""
 # 27.0 -> "27"; 10.5 -> "10.5"
 templates.env.filters["numero"] = lambda n: f"{n:g}" if isinstance(n, (int, float)) else ""
+templates.env.filters["site"] = nome_do_site  # "https://mangaplus.shueisha.co.jp/..." -> "MANGA Plus"
 
 
 def _novidades(request: Request, usuario) -> suporte.Novidades:

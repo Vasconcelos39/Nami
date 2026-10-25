@@ -267,3 +267,70 @@ def test_redefinir_senha_mostra_a_temporaria_uma_vez(admin):
     sair(admin)
     assert entrar(admin, "ana").status_code == 400  # a senha antiga não vale mais
     assert entrar(admin, "ana", temporaria).status_code == 303
+
+
+def test_lista_de_contas_nao_tem_acoes_so_o_link(admin):
+    sair(admin)
+    cadastrar(admin, "ana")
+    sair(admin)
+    entrar(admin, "chefe", "senha-do-chefe-123")
+    ana = _id(admin, "ana")
+    lista_html = admin.get("/admin/usuarios").text
+    assert f'href="/admin/usuarios/{ana}"' in lista_html
+    assert "/senha" not in lista_html and "Desativar" not in lista_html
+
+    pagina = admin.get(f"/admin/usuarios/{ana}")
+    assert pagina.status_code == 200
+    assert "Redefinir senha" in pagina.text and "Bloquear +18" in pagina.text
+    assert admin.get("/admin/usuarios/9999").status_code == 404
+
+
+def test_acoes_voltam_pra_pagina_da_conta(admin):
+    sair(admin)
+    cadastrar(admin, "ana")
+    sair(admin)
+    entrar(admin, "chefe", "senha-do-chefe-123")
+    ana = _id(admin, "ana")
+    resposta = admin.post(f"/admin/usuarios/{ana}/admin", data={"acao": "promover"}, follow_redirects=False)
+    assert resposta.headers["location"] == f"/admin/usuarios/{ana}?ok=promovido"
+    assert "Agora essa conta é admin." in admin.get(resposta.headers["location"]).text
+
+
+def test_admin_bloqueia_e_desbloqueia_o_18(admin, api):
+    from tests.ajudantes import ligar_adulto
+
+    api.responder("GET", f"{API}/manga", json=lista(manga(classificacao="erotica")))
+    sair(admin)
+    cadastrar(admin, "ana")
+    ligar_adulto(admin)
+    assert admin.get("/secao/adulto").status_code == 200
+    sair(admin)
+    entrar(admin, "chefe", "senha-do-chefe-123")
+    ana = _id(admin, "ana")
+    admin.post(f"/admin/usuarios/{ana}/adulto", data={"acao": "bloquear"})
+    assert "+18 bloqueado" in admin.get("/admin/usuarios").text
+
+    sair(admin)
+    entrar(admin, "ana")
+    assert admin.get("/secao/adulto").status_code == 404
+    assert "bloqueado nesta conta" in admin.get("/conta/maioridade").text
+    sair(admin)
+
+    entrar(admin, "chefe", "senha-do-chefe-123")
+    admin.post(f"/admin/usuarios/{ana}/adulto", data={"acao": "desbloquear"})
+    sair(admin)
+    entrar(admin, "ana")
+    # Desbloquear não liga nada: a ana passa pela verificação desde o começo.
+    assert admin.get("/secao/adulto").status_code == 404
+    assert 'name="nascimento"' in admin.get("/conta/maioridade").text
+
+
+def test_desconectar_dos_aparelhos(admin):
+    from fastapi.testclient import TestClient
+
+    celular_da_ana = TestClient(admin.app)
+    cadastrar(celular_da_ana, "ana")  # fica logada no "celular" dela
+    ana = _id(admin, "ana")
+    assert consultar(admin, select(Sessao).where(Sessao.usuario_id == ana))
+    admin.post(f"/admin/usuarios/{ana}/sessoes")
+    assert consultar(admin, select(Sessao).where(Sessao.usuario_id == ana)) == []

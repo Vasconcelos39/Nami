@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block titulo %}{{ alvo.username }} · Usuários · Admin · Nami{% endblock %}
+{% block conteudo %}
+{% set eu = alvo.id == usuario.id %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>{{ alvo.username }}</h1>
+    <span class="suave">
+      {% if alvo.is_admin %}<span class="cap-marca">admin</span>{% endif %}
+      {% if eu %}<span class="cap-marca">você</span>{% endif %}
+      {% if not alvo.ativo %}<span class="cap-marca">desativada</span>{% endif %}
+    </span>
+  </div>
+  {% set aba = 'usuarios' %}{% include "admin/_menu.html" %}
+  <p><a class="suave" href="/admin/usuarios">← Todas as contas</a></p>
+
+  {% if senha_temporaria %}
+  <div class="alerta alerta-ok" role="status">
+    Senha temporária de <strong>{{ alvo.username }}</strong>: <code class="senha">{{ senha_temporaria }}</code><br>
+    Passe pra pessoa e peça pra trocar em “Sua conta” assim que entrar. Ela não aparece de novo.
+  </div>
+  {% endif %}
+
+  <section class="cartao-bloco">
+    <h2>Resumo</h2>
+    <dl class="ficha">
+      <dt>Criada em</dt><dd>{{ alvo.criado_em | data }}</dd>
+      <dt>Último login</dt><dd>{{ resumo.ultimo_login | data or "—" }}</dd>
+      <dt>Aparelhos conectados</dt><dd>{{ resumo.aparelhos }}</dd>
+      <dt>Idioma preferido</dt><dd>{{ alvo.idioma_preferido | idioma }}</dd>
+      <dt>Conteúdo +18</dt>
+      <dd>
+        {% if alvo.adulto_bloqueado %}Bloqueado
+        {% elif alvo.mostrar_adulto and alvo.maioridade_confirmada_em %}Ligado (idade confirmada em {{ alvo.maioridade_confirmada_em | data }})
+        {% elif alvo.maioridade_confirmada_em %}Desligado (idade confirmada em {{ alvo.maioridade_confirmada_em | data }})
+        {% else %}Desligado{% endif %}
+      </dd>
+      <dt>Favoritos</dt><dd>{{ resumo.favoritos }}</dd>
+      <dt>Capítulos abertos</dt><dd>{{ resumo.capitulos }}</dd>
+      <dt>Tickets no suporte</dt><dd>{{ resumo.tickets }}</dd>
+      <dt>Reportes enviados</dt><dd>{{ resumo.reportes }}</dd>
+    </dl>
+  </section>
+
+  <section class="cartao-bloco">
+    <h2>Ações</h2>
+    <div class="acoes-usuario">
+      {% if not eu %}
+      <form method="post" action="/admin/usuarios/{{ alvo.id }}/admin"{% if not alvo.is_admin %} data-confirmar="Tornar {{ alvo.username }} admin? A pessoa passa a ter acesso a este painel inteiro."{% endif %}>
+        <input type="hidden" name="acao" value="{{ 'rebaixar' if alvo.is_admin else 'promover' }}">
+        <button type="submit" class="botao botao-secundario">{{ "Tirar admin" if alvo.is_admin else "Tornar admin" }}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/admin/usuarios/{{ alvo.id }}/adulto"{% if not alvo.adulto_bloqueado %} data-confirmar="Bloquear o +18 de {{ alvo.username }}? A pessoa não consegue ligar de novo até você desbloquear."{% endif %}>
+        <input type="hidden" name="acao" value="{{ 'desbloquear' if alvo.adulto_bloqueado else 'bloquear' }}">
+        <button type="submit" class="botao botao-secundario">{{ "Desbloquear +18" if alvo.adulto_bloqueado else "Bloquear +18" }}</button>
+      </form>
+      {% if not eu %}
+      <form method="post" action="/admin/usuarios/{{ alvo.id }}/sessoes" data-confirmar="Desconectar {{ alvo.username }} de todos os aparelhos? A senha continua a mesma.">
+        <button type="submit" class="botao botao-secundario"{% if not resumo.aparelhos %} disabled{% endif %}>Desconectar dos aparelhos</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/admin/usuarios/{{ alvo.id }}/senha" data-confirmar="Criar uma senha temporária pra {{ alvo.username }}? A senha atual deixa de funcionar e a pessoa é desconectada.">
+        <button type="submit" class="botao botao-secundario">Redefinir senha</button>
+      </form>
+    </div>
+  </section>
+
+  {% if not eu %}
+  <form class="cartao-bloco zona-perigo" method="post" action="/admin/usuarios/{{ alvo.id }}/ativo"{% if alvo.ativo %} data-confirmar="Desativar a conta de {{ alvo.username }}? A pessoa é desconectada e não consegue mais entrar."{% endif %}>
+    <h2>{{ "Desativar a conta" if alvo.ativo else "Reativar a conta" }}</h2>
+    <p class="dica">
+      {% if alvo.ativo %}A pessoa é desconectada e não consegue mais entrar. Nada é apagado: dá pra reativar depois.
+      {% else %}A pessoa volta a conseguir entrar, com a mesma senha de antes.{% endif %}
+    </p>
+    <input type="hidden" name="acao" value="{{ 'desativar' if alvo.ativo else 'reativar' }}">
+    <button type="submit" class="botao{% if alvo.ativo %} botao-perigo{% else %} botao-secundario{% endif %}">{{ "Desativar" if alvo.ativo else "Reativar" }}</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin.js?v={{ versao }}" defer></script>{% endblock %}
