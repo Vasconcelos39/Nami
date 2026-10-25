@@ -25,6 +25,7 @@ A Nami **não guarda scans**. O conteúdo vem de duas fontes legítimas:
 | 5 | Celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página | pronta |
 | 6 | Suporte (tickets em forma de chat), auditoria de segurança, clique que rola no leitor, comando `importar` | pronta |
 | 7 | Autocompletar na busca, aviso de obra que só dá pra ler fora, página por usuário no admin, verificação de idade, IP real atrás do NPM | pronta |
+| 8 | Área de Novidades (posts do admin sobre o que mudou, com rascunho e bolinha no menu) | pronta |
 
 Deploy passo a passo: [DEPLOY.md](DEPLOY.md).
 
@@ -60,11 +61,13 @@ app/
     cobertura.py     compara os capítulos daqui com a obra original
     reportes.py      avisos de problema enviados pelos usuários
     suporte.py       tickets de suporte (quem vê, limites, status)
-  rotas/             catalogo (início, seções, busca, obra), leitor, midia (proxy),
-                     conta, estante, reportes, suporte, admin
+    maioridade.py    verificação de idade pra ligar o +18
+    noticias.py      posts de Novidades e o texto simples (escapa tudo)
+  rotas/             catalogo (início, seções, busca, sugestões, obra), leitor,
+                     midia (proxy), conta, estante, reportes, suporte, noticias, admin
   templates/         HTML (admin/ = painel, suporte/ = chat de suporte)
-  static/            CSS; JS do site (nami.js), do leitor, do painel, do chat de
-                     suporte e o service worker (sw.js); manifest e tela offline;
+  static/            CSS; JS do site (nami.js), do autocompletar da busca, do leitor,
+                     do painel, do chat de suporte e o service worker (sw.js); manifest e tela offline;
                      marca/ (logos já tratados)
 requirements.txt     dependências diretas; constraints.txt trava todas as versões
 assets/              arte original da marca (os PNGs que você mandou)
@@ -320,6 +323,25 @@ mensagem) e os admins respondem, como num chat.
 - **Limites:** assunto de 3 a 120 caracteres, mensagem até 4000, no máximo 5
   conversas abertas por conta e 30 mensagens por hora (admins sem limite). O
   texto aparece sempre como texto (nunca como HTML).
+
+## Novidades
+
+Posts do admin contando, do jeito dele, o que mudou no site (`/novidades`,
+escritos em `/admin/novidades`; regra em `app/servicos/noticias.py`).
+
+- Rascunho (sem data de publicação) só os admins veem. "Publicar" marca a data;
+  "Voltar pra rascunho" tira o post do ar.
+- **Bolinha no menu:** cada conta guarda quando abriu `/novidades` pela última
+  vez (`usuario.noticias_vistas_em`); post publicado depois disso acende a
+  bolinha em "Novidades" (e no ícone "Conta" do celular) e ganha a marca "nova".
+  Corrigir um post já publicado mantém a data, pra não acender de novo.
+- **Texto simples, nunca HTML:** linha em branco separa parágrafos, linhas com
+  `- ` viram lista, `**assim**` vira negrito e endereços http(s) viram links.
+  Cada pedaço é escapado antes de virar HTML (o filtro `texto_simples` é o único
+  lugar que monta HTML a partir de texto digitado; há testes de XSS).
+- Só quem tem conta vê (o link fica no menu da conta).
+- A migração 0005 deixa um rascunho do primeiro post, contando o que mudou desde
+  a 0.6, quando o banco já tem contas (instalação nova começa vazia).
 
 ## Reportes
 

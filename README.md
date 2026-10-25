@@ -17,6 +17,8 @@ A Nami não guarda scans: o catálogo e as páginas vêm da API oficial do
 - **Celular:** layout próprio, com barra de navegação embaixo, e dá pra
   instalar como app na tela inicial (Android e iPhone).
 - **Contas:** continuar de onde parou, histórico, favoritos, idioma preferido.
+- **Novidades:** o admin escreve posts sobre o que mudou no site, e quem tem
+  conta vê uma bolinha no menu até ler.
 - **Classificação etária:** visitante vê só conteúdo livre, quem tem conta vê
   também o sugestivo, e o +18 só aparece pra quem passa pela verificação de
   idade (data de nascimento + senha da conta).
@@ -46,6 +48,7 @@ a cada atualização).
 - [x] **Fase 5:** celular e app instalável, AniList (links oficiais e capítulos faltando), reportes, obras por página
 - [x] **Fase 6:** suporte em forma de chat, auditoria de segurança, clique que rola no leitor e importação pelo terminal
 - [x] **Fase 7:** autocompletar na busca, aviso de obra que só dá pra ler no site oficial, página por usuário no admin, verificação de idade e IP real atrás do proxy
+- [x] **Fase 8:** área de Novidades, pra contar o que mudou no site
 
 ## Rodar no PC (Windows)
 

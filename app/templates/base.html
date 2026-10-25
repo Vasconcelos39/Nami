@@ -46,6 +46,7 @@
       <a href="/historico">Histórico</a>
       <a href="/favoritos">Favoritos</a>
       <a href="/suporte">Suporte{% if novidades.respostas %} <span class="contador" title="respostas novas">{{ novidades.respostas }}</span>{% endif %}</a>
+      <a href="/novidades">Novidades{% if noticia_nova %} <span class="ponto-novo" role="img" aria-label="tem novidade"></span>{% endif %}</a>
       <a href="/conta" title="Configurações da conta">{{ usuario.username }}</a>
       <form action="/sair" method="post"><button type="submit" class="botao-link">Sair</button></form>
       {% else %}
@@ -75,8 +76,8 @@
   {% if usuario %}
   <a href="/historico"{% if caminho == "/historico" %} aria-current="page"{% endif %}>{{ icone("historico") }}<span>Histórico</span></a>
   <a href="/favoritos"{% if caminho == "/favoritos" %} aria-current="page"{% endif %}>{{ icone("favoritos") }}<span>Favoritos</span></a>
-  <a href="/conta"{% if caminho == "/conta" or caminho.startswith(("/admin", "/suporte")) %} aria-current="page"{% endif %}>
-    {{ icone("conta") }}{% if novidades.respostas or novidades.aguardando %}<span class="ponto" aria-label="novidades no suporte"></span>{% endif %}<span>Conta</span>
+  <a href="/conta"{% if caminho.startswith(("/conta", "/admin", "/suporte", "/novidades")) %} aria-current="page"{% endif %}>
+    {{ icone("conta") }}{% if novidades.respostas or novidades.aguardando or noticia_nova %}<span class="ponto" aria-label="tem novidade"></span>{% endif %}<span>Conta</span>
   </a>
   {% else %}
   <a href="/entrar?proximo={{ caminho | urlencode }}"{% if caminho in ("/entrar", "/cadastro") %} aria-current="page"{% endif %}>{{ icone("conta") }}<span>Entrar</span></a>

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block titulo %}{{ noticia.titulo if noticia else "Escrever novidade" }} · Admin · Nami{% endblock %}
+{% block conteudo %}
+{% set publicada = noticia and noticia.publicada_em %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>{{ "Editar novidade" if noticia else "Escrever novidade" }}</h1>
+    {% if noticia %}<span class="suave">{% if publicada %}publicada em {{ noticia.publicada_em | data }}{% else %}rascunho{% endif %}</span>{% endif %}
+  </div>
+  {% set aba = 'novidades' %}{% include "admin/_menu.html" %}
+  <p><a class="suave" href="/admin/novidades">← Todas as novidades</a></p>
+
+  <form class="cartao-bloco" method="post" action="{{ '/admin/novidades/%d' % noticia.id if noticia else '/admin/novidades/nova' }}">
+    <div class="campo">
+      <label for="titulo">Título</label>
+      <input id="titulo" name="titulo" type="text" maxlength="120" required
+             value="{{ titulo if titulo is defined else (noticia.titulo if noticia else '') }}">
+    </div>
+    <div class="campo">
+      <label for="texto">Texto</label>
+      <textarea id="texto" name="texto" rows="14" maxlength="10000" required>{{ texto if texto is defined else (noticia.texto if noticia else '') }}</textarea>
+      <p class="dica">
+        Linha em branco separa parágrafos. Linhas começando com <code>- </code> viram uma lista.
+        <code>**assim**</code> fica em <strong>negrito</strong>, e links (<code>https://…</code>) viram clicáveis.
+      </p>
+    </div>
+    <div class="acoes-usuario">
+      {% if publicada %}
+      <button type="submit" name="acao" value="salvar" class="botao">Salvar alterações</button>
+      <button type="submit" name="acao" value="despublicar" class="botao botao-secundario">Voltar pra rascunho</button>
+      {% else %}
+      <button type="submit" name="acao" value="publicar" class="botao">Publicar</button>
+      <button type="submit" name="acao" value="{{ 'salvar' if noticia else 'rascunho' }}" class="botao botao-secundario">Salvar rascunho</button>
+      {% endif %}
+    </div>
+    {% if publicada %}<p class="dica">Corrigir um post já publicado não acende a bolinha de novo pra quem já leu.</p>{% endif %}
+  </form>
+
+  {% if noticia %}
+  <section class="cartao-bloco noticia">
+    <h2 class="suave">Como fica (versão salva)</h2>
+    <h2>{{ noticia.titulo }}</h2>
+    <div class="noticia-texto">{{ noticia.texto | texto_simples }}</div>
+  </section>
+
+  <form class="cartao-bloco zona-perigo" method="post" action="/admin/novidades/{{ noticia.id }}/apagar"
+        data-confirmar="Apagar “{{ noticia.titulo }}”? Não dá pra desfazer.">
+    <h2>Apagar</h2>
+    <p class="dica">Some da página de Novidades pra todo mundo.</p>
+    <button type="submit" class="botao botao-perigo">Apagar novidade</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin.js?v={{ versao }}" defer></script>{% endblock %}

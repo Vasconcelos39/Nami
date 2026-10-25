@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Novidades · Nami{% endblock %}
+{% block conteudo %}
+<div class="noticias">
+  <div class="cabeca-bloco"><h1>Novidades</h1><span class="suave">o que mudou na Nami</span></div>
+  {% if usuario.is_admin %}<p class="dica">Você escreve e publica os posts em <a href="/admin/novidades">Admin → Novidades</a>.</p>{% endif %}
+  {% for n in lista %}
+  <article class="cartao-bloco noticia">
+    <header class="noticia-cabeca">
+      <h2>{{ n.titulo }}</h2>
+      <p class="suave">
+        <time datetime="{{ n.publicada_em.isoformat() }}">{{ n.publicada_em | data }}</time>
+        {% if vistas_antes is none or n.publicada_em > vistas_antes %}<span class="cap-marca cap-marca-andamento">nova</span>{% endif %}
+      </p>
+    </header>
+    <div class="noticia-texto">{{ n.texto | texto_simples }}</div>
+  </article>
+  {% else %}
+  <p class="vazio">Ainda não saiu nenhuma novidade por aqui.</p>
+  {% endfor %}
+</div>
+{% endblock %}

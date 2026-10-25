@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titulo %}Novidades · Admin · Nami{% endblock %}
+{% block conteudo %}
+<div class="admin">
+  <div class="cabeca-bloco">
+    <h1>Novidades</h1>
+    <a class="botao" href="/admin/novidades/nova">Escrever novidade</a>
+  </div>
+  {% set aba = 'novidades' %}{% include "admin/_menu.html" %}
+
+  <p class="dica">
+    Conte pro pessoal o que mudou no site, do seu jeito. Os posts publicados aparecem em
+    <a href="/novidades">Novidades</a>, e quem tem conta vê uma bolinha no menu até abrir.
+  </p>
+  {% if lista %}
+  <div class="tabela-rolagem">
+    <table class="tabela tabela-clicavel">
+      <thead><tr><th>Título</th><th>Situação</th><th>Atualizada em</th></tr></thead>
+      <tbody>
+        {% for n in lista %}
+        <tr>
+          <td><a class="linha-link" href="/admin/novidades/{{ n.id }}"><strong>{{ n.titulo }}</strong></a></td>
+          <td>{% if n.publicada_em %}Publicada em {{ n.publicada_em | data }}{% else %}<span class="cap-marca cap-marca-andamento">rascunho</span>{% endif %}</td>
+          <td>{{ n.atualizada_em | data }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="vazio">Nenhuma novidade ainda. Que tal contar o que mudou nesta versão?</p>
+  {% endif %}
+</div>
+{% endblock %}

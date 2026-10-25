@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from app import __version__
 from app.dominio import nome_do_site
-from app.servicos import suporte
+from app.servicos import noticias, suporte
 from app.servicos.visibilidade import secoes_visiveis
 
 PASTA_APP = Path(__file__).resolve().parent
@@ -68,25 +68,29 @@ templates.env.filters["data"] = lambda d: d.strftime("%d/%m/%Y") if isinstance(d
 # 27.0 -> "27"; 10.5 -> "10.5"
 templates.env.filters["numero"] = lambda n: f"{n:g}" if isinstance(n, (int, float)) else ""
 templates.env.filters["site"] = nome_do_site  # "https://mangaplus.shueisha.co.jp/..." -> "MANGA Plus"
+templates.env.filters["texto_simples"] = noticias.formatar  # posts de Novidades (escapa tudo)
 
 
-def _novidades(request: Request, usuario) -> suporte.Novidades:
-    """Os avisos do menu: respostas novas do suporte (e, pros admins, tickets esperando)."""
+def _avisos(request: Request, usuario) -> tuple[suporte.Novidades, bool]:
+    """Os avisos do menu: respostas novas do suporte (e, pros admins, tickets
+    esperando) e se saiu post em Novidades que a pessoa ainda não viu."""
     if usuario is None:
-        return suporte.Novidades()
+        return suporte.Novidades(), False
     with request.app.state.sessoes() as db:
-        return suporte.novidades(db, usuario)
+        return suporte.novidades(db, usuario), noticias.tem_nova(db, usuario)
 
 
 def render(request: Request, nome: str, status: int = 200, /, **contexto):
     # O "/" deixa request, nome e status só por posição: assim um template pode
     # receber uma variável chamada "status" sem confundir com o código HTTP.
     usuario = getattr(request.state, "usuario", None)
+    do_suporte, noticia_nova = _avisos(request, usuario)
     contexto = {
         "usuario": usuario,
         "secoes": secoes_visiveis(usuario),
         "cadastro_aberto": request.app.state.config.cadastro_aberto,
-        "novidades": _novidades(request, usuario),
+        "novidades": do_suporte,  # (o nome é antigo: são os avisos do suporte)
+        "noticia_nova": noticia_nova,
         **contexto,
     }
     return templates.TemplateResponse(request, nome, contexto, status_code=status)

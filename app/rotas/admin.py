@@ -20,9 +20,9 @@ from app.dominio import Classificacao, Filtro, Tipo
 from app.fontes.base import FonteIndisponivel, NaoEncontrado
 from app.fontes.local import FONTE_ID
 from app.fontes.registro import Registro
-from app.models import Capitulo, Favorito, Obra, Progresso, Reporte, Sessao, Ticket, Usuario, agora
+from app.models import Capitulo, Favorito, Noticia, Obra, Progresso, Reporte, Sessao, Ticket, Usuario, agora
 from app.renderizar import NOMES_IDIOMA, NOMES_STATUS, render
-from app.servicos import acervo, maioridade, reportes, suporte
+from app.servicos import acervo, maioridade, noticias, reportes, suporte
 from app.servicos.auth import gerar_hash
 from app.servicos.biblioteca import ErroDeImportacao, salvar_envio
 
@@ -56,6 +56,9 @@ MENSAGENS = {
     "desconectado": "A conta foi desconectada de todos os aparelhos.",
     "adulto-bloqueado": "+18 bloqueado nesta conta. A pessoa não consegue ligar de novo.",
     "adulto-desbloqueado": "+18 desbloqueado. Pra ligar, a pessoa passa pela verificação de idade de novo.",
+    "noticia-rascunho": "Rascunho salvo. Só os admins veem até você publicar.",
+    "noticia-publicada": "Publicada! Quem tem conta vê a bolinha em “Novidades” no menu.",
+    "noticia-apagada": "Novidade apagada.",
     "resolvido": "Reporte marcado como resolvido.",
     "reaberto": "Reporte reaberto.",
 }
@@ -573,3 +576,83 @@ def redefinir_senha(
     db.commit()
     # Mostrada direto na página (não vai pra URL nem fica salva em lugar nenhum).
     return _pagina_usuario(request, db, alvo, senha_temporaria=temporaria)
+
+
+# ------------------------------------------------------------- novidades
+
+
+@router.get("/novidades")
+def novidades_lista(
+    request: Request, ok: str | None = None, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)
+):
+    return render(request, "admin/novidades.html", lista=noticias.todas(db), mensagem=MENSAGENS.get(ok))
+
+
+@router.get("/novidades/nova")
+def novidade_nova(request: Request, _admin: Usuario = Depends(exigir_admin)):
+    return render(request, "admin/novidade.html", noticia=None)
+
+
+@router.post("/novidades/nova")
+def criar_novidade(
+    request: Request,
+    titulo: Texto = "",
+    texto: TextoLongo = "",
+    acao: Texto = "rascunho",
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    try:
+        noticia = noticias.criar(db, admin, titulo, texto, publicar=acao == "publicar")
+    except noticias.ErroDeNoticia as erro:
+        return render(request, "admin/novidade.html", 400, noticia=None, titulo=titulo, texto=texto, erro=str(erro))
+    ok = "noticia-publicada" if noticia.publicada_em else "noticia-rascunho"
+    return RedirectResponse(f"/admin/novidades/{noticia.id}?ok={ok}", status_code=303)
+
+
+def _noticia(db: Session, noticia_id: int) -> Noticia:
+    noticia = db.get(Noticia, noticia_id)
+    if noticia is None:
+        raise NaoEncontrado(str(noticia_id))
+    return noticia
+
+
+@router.get("/novidades/{noticia_id}")
+def novidade(
+    noticia_id: int,
+    request: Request,
+    ok: str | None = None,
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    return render(request, "admin/novidade.html", noticia=_noticia(db, noticia_id), mensagem=MENSAGENS.get(ok))
+
+
+@router.post("/novidades/{noticia_id}")
+def editar_novidade(
+    noticia_id: int,
+    request: Request,
+    titulo: Texto = "",
+    texto: TextoLongo = "",
+    acao: Texto = "salvar",
+    _admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+):
+    """acao: "salvar" (mantém como está), "publicar" ou "despublicar" (volta a ser rascunho)."""
+    noticia = _noticia(db, noticia_id)
+    publicada = {"publicar": True, "despublicar": False}.get(acao, noticia.publicada_em is not None)
+    try:
+        noticias.editar(db, noticia, titulo, texto, publicada)
+    except noticias.ErroDeNoticia as erro:
+        db.rollback()
+        return render(
+            request, "admin/novidade.html", 400, noticia=noticia, titulo=titulo, texto=texto, erro=str(erro)
+        )
+    ok = {"publicar": "noticia-publicada", "despublicar": "noticia-rascunho"}.get(acao, "salva")
+    return RedirectResponse(f"/admin/novidades/{noticia.id}?ok={ok}", status_code=303)
+
+
+@router.post("/novidades/{noticia_id}/apagar")
+def apagar_novidade(noticia_id: int, _admin: Usuario = Depends(exigir_admin), db: Session = Depends(obter_db)):
+    noticias.apagar(db, _noticia(db, noticia_id))
+    return RedirectResponse("/admin/novidades?ok=noticia-apagada", status_code=303)

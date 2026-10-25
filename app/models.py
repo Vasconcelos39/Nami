@@ -45,6 +45,8 @@ class Usuario(Base):
     mostrar_adulto: Mapped[bool] = mapped_column(default=False)
     # O admin pode impedir uma conta de ver conteúdo +18 (ex.: alguém que mentiu a idade).
     adulto_bloqueado: Mapped[bool] = mapped_column(default=False)
+    # Última vez que abriu /novidades: post publicado depois disso acende a bolinha do menu.
+    noticias_vistas_em: Mapped[datetime | None]
     idioma_preferido: Mapped[str] = mapped_column(String(10), default="pt-br")
     criado_em: Mapped[datetime] = mapped_column(default=agora)
 
@@ -205,6 +207,25 @@ class MensagemTicket(Base):
     criado_em: Mapped[datetime] = mapped_column(default=agora)
 
     ticket: Mapped[Ticket] = relationship(back_populates="mensagens")
+    autor: Mapped[Usuario | None] = relationship()
+
+
+class Noticia(Base):
+    """Post da área "Novidades": o admin conta, do jeito dele, o que mudou no site.
+
+    Sem `publicada_em` é rascunho, e só os admins veem.
+    """
+
+    __tablename__ = "noticia"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    titulo: Mapped[str] = mapped_column(String(120))
+    texto: Mapped[str] = mapped_column(Text)
+    autor_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))
+    publicada_em: Mapped[datetime | None] = mapped_column(index=True)
+    criada_em: Mapped[datetime] = mapped_column(default=agora)
+    atualizada_em: Mapped[datetime] = mapped_column(default=agora)
+
     autor: Mapped[Usuario | None] = relationship()
 
 
