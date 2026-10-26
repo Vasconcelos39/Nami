@@ -23,7 +23,14 @@ class Base(DeclarativeBase):
 
 def criar_engine(url: str) -> Engine:
     # check_same_thread=False: o FastAPI atende cada requisição numa thread.
-    engine = create_engine(url, connect_args={"check_same_thread": False})
+    # Sem teto de conexões (max_overflow=-1): o SQLite não tem servidor, então
+    # conexão a mais não pesa, e um teto travava tudo. São até 40 requisições ao
+    # mesmo tempo, cada uma segurando a sua enquanto espera o MangaDex, e às
+    # vezes pedindo uma segunda por um instante (ex.: os avisos do menu). Com o
+    # teto padrão (15), as 15 ficavam esperando umas pelas outras por 30 s.
+    engine = create_engine(
+        url, connect_args={"check_same_thread": False}, pool_size=10, max_overflow=-1
+    )
 
     @event.listens_for(engine, "connect")
     def _configurar_sqlite(conexao, _registro):

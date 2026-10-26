@@ -4,6 +4,7 @@ Nenhum teste fala com o MangaDex ou o AniList de verdade: `ApiFalsa` responde
 no lugar deles e registra cada chamada, pra os testes conferirem o que foi pedido.
 """
 
+import time
 from collections.abc import Callable
 
 import httpx
@@ -35,20 +36,22 @@ class ApiFalsa:
         self._respostas: dict[tuple[str, str], list[Callable[[], httpx.Response]]] = {}
         self.chamadas: list[httpx.Request] = []
 
-    def responder(self, metodo, url, *, json=None, conteudo=b"", status=200, headers=None):
+    def responder(self, metodo, url, *, json=None, conteudo=b"", status=200, headers=None, demora=0.0):
         """Define a resposta de uma URL. Chamar de novo pra mesma URL enfileira
         outra resposta: a primeira chamada recebe a primeira, e assim por diante
-        (a última se repete)."""
+        (a última se repete). `demora`: segundos até responder (MangaDex lento)."""
 
         def gerar():
+            time.sleep(demora)
             if json is not None:
                 return httpx.Response(status, json=json, headers=headers)
             return httpx.Response(status, content=conteudo, headers=headers)
 
         self._respostas.setdefault((metodo, url), []).append(gerar)
 
-    def imagem(self, url, conteudo=b"img", tipo="image/jpeg", status=200, headers=None):
-        self.responder("GET", url, conteudo=conteudo, status=status, headers={"content-type": tipo, **(headers or {})})
+    def imagem(self, url, conteudo=b"img", tipo="image/jpeg", status=200, headers=None, demora=0.0):
+        headers = {"content-type": tipo, **(headers or {})}
+        self.responder("GET", url, conteudo=conteudo, status=status, headers=headers, demora=demora)
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.chamadas.append(request)

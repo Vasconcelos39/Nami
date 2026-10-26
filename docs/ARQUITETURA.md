@@ -372,6 +372,12 @@ MangaDex e aplica os ajustes do banco:
   Os capítulos extras têm id `extra-<hex>` e as páginas ficam em `data/ajustes/extras/`.
 - Trocar a classificação ou o título atualiza também a cópia leve da obra no
   banco (a que o histórico e os favoritos usam).
+- Os ajustes ficam numa cópia em memória (toda capa e toda página passam por
+  eles); as rotas do painel que gravam chamam `invalidar()`, e a próxima
+  consulta relê do banco. Na 0.10.0 cada imagem consultava o banco com uma
+  segunda conexão, e com muitas capas ao mesmo tempo as conexões acabavam
+  (pedidos parados 30 s com "QueuePool limit ... reached"). Desde a 0.10.1 o
+  banco também não tem teto de conexões (`db.py`).
 - Limite conhecido: as listagens vêm do MangaDex já filtradas pela
   classificação de lá. Obra "livre" reclassificada como adulta sai do site
   normal na hora, mas não entra nas listagens da área madura (dá pra chegar

@@ -12,10 +12,16 @@ Classificação trocada vale em toda checagem, mas as listagens vêm do MangaDex
 já filtradas pela classificação de lá: uma obra "livre" reclassificada como
 adulta sai do site normal, mas não passa a aparecer nas listagens da área
 madura (dá pra chegar nela pelo link, pelo histórico ou pelos favoritos).
+
+Os ajustes ficam numa cópia em memória: toda capa e toda página passam por
+aqui, e consultar o banco a cada uma pesava (e chegou a esgotar as conexões).
+Quem grava um ajuste chama `invalidar()` (rotas/ajustes.py), e a próxima
+consulta relê tudo. A cópia é do processo: a Nami roda com um worker só.
 """
 
+import threading
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from sqlalchemy import select
@@ -39,6 +45,16 @@ def id_do_extra(capitulo_id: str) -> str | None:
     return resto if len(resto) == 32 and all(c in "0123456789abcdef" for c in resto) else None
 
 
+@dataclass
+class _Copia:
+    """Tudo o que os admins mudaram nesta fonte, lido do banco de uma vez."""
+
+    ajustes: dict[str, AjusteObra] = field(default_factory=dict)  # obra -> ajuste
+    ocultos: set[str] = field(default_factory=set)  # capítulos escondidos
+    extras: dict[str, CapituloExtra] = field(default_factory=dict)  # id -> capítulo extra
+    extras_da_obra: dict[str, list[CapituloExtra]] = field(default_factory=dict)
+
+
 class ComAjustes:
     def __init__(self, original: Fonte, sessoes: sessionmaker[Session], config: Config):
         self.original = original
@@ -48,36 +64,43 @@ class ComAjustes:
         self.sessoes = sessoes
         self.pasta_capas = config.dir_ajustes / "capas" / original.id
         self.pasta_extras = config.dir_ajustes / "extras"
+        self._copia: _Copia | None = None
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------- consultas
 
-    def _ajustes(self, obra_ids: Sequence[str]) -> dict[str, AjusteObra]:
-        if not obra_ids:
-            return {}
+    def invalidar(self) -> None:
+        """Um admin gravou um ajuste: a próxima consulta relê do banco."""
+        # O lock espera uma leitura em andamento acabar, senão ela guardaria a cópia velha.
+        with self._lock:
+            self._copia = None
+
+    def _atual(self) -> _Copia:
+        with self._lock:
+            if self._copia is None:
+                self._copia = self._ler_do_banco()
+            return self._copia
+
+    def _ler_do_banco(self) -> _Copia:
+        copia = _Copia()
         with self.sessoes() as db:
-            linhas = db.scalars(
-                select(AjusteObra).where(AjusteObra.fonte_id == self.id, AjusteObra.obra_id.in_(list(obra_ids)))
-            ).all()
-        return {a.obra_id: a for a in linhas}
+            for ajuste in db.scalars(select(AjusteObra).where(AjusteObra.fonte_id == self.id)):
+                copia.ajustes[ajuste.obra_id] = ajuste
+            copia.ocultos = set(
+                db.scalars(select(CapituloOculto.capitulo_id).where(CapituloOculto.fonte_id == self.id))
+            )
+            for extra in db.scalars(select(CapituloExtra).where(CapituloExtra.fonte_id == self.id)):
+                copia.extras[extra.id] = extra
+                copia.extras_da_obra.setdefault(extra.obra_id, []).append(extra)
+        return copia
 
     def _ajuste(self, obra_id: str) -> AjusteObra | None:
-        return self._ajustes([obra_id]).get(obra_id)
-
-    def _com_extras(self, obra_ids: Sequence[str]) -> set[str]:
-        with self.sessoes() as db:
-            return set(
-                db.scalars(
-                    select(CapituloExtra.obra_id)
-                    .where(CapituloExtra.fonte_id == self.id, CapituloExtra.obra_id.in_(list(obra_ids)))
-                    .distinct()
-                )
-            )
+        return self._atual().ajustes.get(obra_id)
 
     def _extra(self, capitulo_id: str) -> CapituloExtra:
         extra_id = id_do_extra(capitulo_id)
-        with self.sessoes() as db:
-            extra = db.get(CapituloExtra, extra_id) if extra_id else None
-        if extra is None or extra.fonte_id != self.id:
+        extra = self._atual().extras.get(extra_id) if extra_id else None
+        if extra is None:
             raise NaoEncontrado(capitulo_id)
         return extra
 
@@ -117,17 +140,16 @@ class ComAjustes:
 
     def buscar(self, filtro: Filtro, pagina: int = 1, por_pagina: int = 24) -> PaginaDeResultados:
         resultado = self.original.buscar(filtro, pagina, por_pagina)
-        ids = [o.id for o in resultado.obras]
-        ajustes, com_extras = self._ajustes(ids), self._com_extras(ids) if ids else set()
-        if not ajustes and not com_extras:
+        copia = self._atual()
+        if not any(o.id in copia.ajustes or o.id in copia.extras_da_obra for o in resultado.obras):
             return resultado
         obras = []
         for obra in resultado.obras:
-            ajustada = self._aplicar(obra, ajustes.get(obra.id))
+            ajustada = self._aplicar(obra, copia.ajustes.get(obra.id))
             # Bloqueada, ou reclassificada pra fora do que foi pedido: sai da lista.
             if ajustada is None or ajustada.classificacao not in filtro.classificacoes:
                 continue
-            if ajustada.id in com_extras and ajustada.so_fora:
+            if ajustada.id in copia.extras_da_obra and ajustada.so_fora:
                 ajustada = replace(ajustada, so_fora=False)  # os extras dá pra ler aqui
             obras.append(ajustada)
         return replace(resultado, obras=obras)
@@ -150,31 +172,16 @@ class ComAjustes:
 
     def capitulos(self, obra_id: str, idiomas: Sequence[str]) -> list[Capitulo]:
         capitulos = self.original.capitulos(obra_id, idiomas)
-        with self.sessoes() as db:
-            ocultos = set(
-                db.scalars(
-                    select(CapituloOculto.capitulo_id).where(
-                        CapituloOculto.fonte_id == self.id, CapituloOculto.obra_id == obra_id
-                    )
-                )
-            )
-            extras = db.scalars(
-                select(CapituloExtra).where(
-                    CapituloExtra.fonte_id == self.id,
-                    CapituloExtra.obra_id == obra_id,
-                    CapituloExtra.idioma.in_(list(idiomas)),
-                )
-            ).all()
-        lista = [c for c in capitulos if c.id not in ocultos] + [self._capitulo_extra(e) for e in extras]
+        copia = self._atual()
+        extras = [e for e in copia.extras_da_obra.get(obra_id, []) if e.idioma in idiomas]
+        lista = [c for c in capitulos if c.id not in copia.ocultos] + [self._capitulo_extra(e) for e in extras]
         return sorted(lista, key=lambda c: (c.ordem, c.idioma))
 
     def capitulo(self, capitulo_id: str) -> tuple[Obra, Capitulo]:
         if capitulo_id.startswith(PREFIXO_EXTRA):
             extra = self._extra(capitulo_id)
             return self.obra(extra.obra_id), self._capitulo_extra(extra)
-        with self.sessoes() as db:
-            oculto = db.get(CapituloOculto, (self.id, capitulo_id))
-        if oculto is not None:
+        if capitulo_id in self._atual().ocultos:
             raise NaoEncontrado(capitulo_id)
         obra, capitulo = self.original.capitulo(capitulo_id)
         ajustada = self._aplicar(obra, self._ajuste(obra.id))

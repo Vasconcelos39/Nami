@@ -1,7 +1,8 @@
 """Painel de admin → Ajustes: mexer em obras do MangaDex (bloquear, classificação,
 título, descrição, capa, esconder capítulos e enviar capítulos extras).
 
-Regras em servicos/ajustes.py; quem aplica os ajustes no site é fontes/ajustes.py.
+Regras em servicos/ajustes.py; quem aplica os ajustes no site é fontes/ajustes.py,
+que guarda uma cópia deles em memória: toda rota que grava chama `fonte.invalidar()`.
 """
 
 import re
@@ -145,6 +146,7 @@ def salvar(
     except ajustes.ErroDeAjuste as erro:
         db.rollback()
         return _pagina(request, db, config, fonte, obra_id, 400, erro=str(erro))
+    fonte.invalidar()
     return RedirectResponse(_endereco(fonte_id, obra_id, "salvo"), status_code=303)
 
 
@@ -163,6 +165,7 @@ def capa(
     original = _original(fonte, obra_id)
     if acao == "original":
         ajustes.voltar_capa_original(db, config, original)
+        fonte.invalidar()
         return RedirectResponse(_endereco(fonte_id, obra_id, "capa-original"), status_code=303)
     try:
         if arquivo is None or not arquivo.filename:
@@ -174,6 +177,7 @@ def capa(
     except ajustes.ErroDeAjuste as erro:
         db.rollback()
         return _pagina(request, db, config, fonte, obra_id, 400, erro_capa=str(erro))
+    fonte.invalidar()
     return RedirectResponse(_endereco(fonte_id, obra_id, "capa"), status_code=303)
 
 
@@ -194,6 +198,7 @@ def esconder(
         raise NaoEncontrado(capitulo_id)
     esconder_ = acao != "mostrar"
     ajustes.esconder_capitulo(db, original, capitulo_id, esconder_)
+    fonte.invalidar()
     return RedirectResponse(
         _endereco(fonte_id, obra_id, "escondido" if esconder_ else "mostrado") + "#capitulos", status_code=303
     )
@@ -231,6 +236,7 @@ def adicionar_extra(
             request, db, config, fonte, obra_id, 400, erro_extra=str(erro),
             extra_form={"numero": numero, "volume": volume, "titulo": titulo, "idioma": idioma},
         )
+    fonte.invalidar()
     return RedirectResponse(_endereco(fonte_id, obra_id, "extra") + "#extras", status_code=303)
 
 
@@ -248,4 +254,5 @@ def remover_extra(
     if extra is None or extra.fonte_id != fonte_id or extra.obra_id != obra_id:
         raise NaoEncontrado(extra_id)
     ajustes.remover_extra(db, config, _original(fonte, obra_id), extra)
+    fonte.invalidar()
     return RedirectResponse(_endereco(fonte_id, obra_id, "extra-removido") + "#extras", status_code=303)

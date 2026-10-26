@@ -108,6 +108,7 @@ def test_esconder_e_mostrar_capitulo(admin):
 
 
 def test_capitulo_extra_entra_na_ordem_certa(admin):
+    assert "Adicionado pelo admin" not in admin.get(f"/obra/mangadex/{OBRA}").text  # o site já leu os ajustes
     resposta = admin.post(
         f"{AJUSTES}/extras",
         data={"numero": "1,5", "titulo": "O especial", "idioma": "pt-br"},
@@ -155,3 +156,19 @@ def test_conta_comum_nao_ajusta_nada(admin):
     sair(admin)
     entrar(admin, "chefe", SENHA_CHEFE)
     assert consultar(admin, select(AjusteObra)) == []
+
+
+def test_ajustes_ficam_em_memoria_e_atualizam_na_hora(admin):
+    # Toda capa e toda página passam pelos ajustes: o banco é lido uma vez só,
+    # e de novo quando um admin grava alguma coisa.
+    fonte = admin.app.state.fontes.obter("mangadex")
+    sessoes, leituras = fonte.sessoes, []
+    fonte.sessoes = lambda: leituras.append(1) or sessoes()
+    for _ in range(5):
+        assert admin.get(f"/capa/mangadex/{OBRA}").status_code == 200
+        assert admin.get(f"/obra/mangadex/{OBRA}").status_code == 200
+    assert len(leituras) == 1
+
+    _salvar(admin, titulo="Nome Novo")
+    assert "Nome Novo" in admin.get(f"/obra/mangadex/{OBRA}").text
+    assert len(leituras) == 2

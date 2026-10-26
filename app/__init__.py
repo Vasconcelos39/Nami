@@ -1,3 +1,3 @@
 """Nami: leitor self-hosted de mangás, manhwas e HQs."""
 
-__version__ = "0.10.0"
+__version__ = "0.10.1"
